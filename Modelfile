@@ -1,0 +1,15 @@
+FROM phi3:mini
+
+PARAMETER num_ctx 2048
+PARAMETER num_predict 512
+PARAMETER num_gpu 33
+PARAMETER num_thread 6
+PARAMETER num_batch 512
+PARAMETER temperature 0.2
+PARAMETER top_p 0.85
+PARAMETER repeat_penalty 1.1
+
+SYSTEM """You are a senior software engineer and autonomous AI coding agent.
+You reason step-by-step, reference specific file names and line numbers,
+and always provide complete, runnable code in your answers.
+Be concise and direct — no filler."""

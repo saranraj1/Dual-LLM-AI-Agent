@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "AI Agent: Chat Mode",
+      "type": "shell",
+      "command": "python",
+      "args": ["C:/ai-agent/main.py", "--chat", "--project", "${workspaceFolder}"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": false },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "AI Agent: Run Task (Planner)",
+      "type": "shell",
+      "command": "python",
+      "args": ["C:/ai-agent/main.py", "--task", "${input:agentTask}", "--project", "${workspaceFolder}"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "AI Agent: Analyze Current File",
+      "type": "shell",
+      "command": "python",
+      "args": ["C:/ai-agent/main.py", "--task", "Analyze ${file} — find bugs, explain logic, suggest improvements", "--project", "${workspaceFolder}"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "AI Agent: Optimize Current File",
+      "type": "shell",
+      "command": "python",
+      "args": ["C:/ai-agent/main.py", "--task", "Optimize ${file} for performance and readability. Show the improved version.", "--project", "${workspaceFolder}"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "AI Agent: Show Memory",
+      "type": "shell",
+      "command": "python",
+      "args": ["C:/ai-agent/main.py", "--memory"],
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true, "clear": true },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "AI Agent: Clear Memory",
+      "type": "shell",
+      "command": "python",
+      "args": ["C:/ai-agent/main.py", "--clear"],
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false, "clear": true },
+      "problemMatcher": [],
+      "group": "none"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "agentTask",
+      "type": "promptString",
+      "description": "What should the agent do?",
+      "default": "Analyze this project and suggest improvements"
+    }
+  ]
+}
