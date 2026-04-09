@@ -87,9 +87,14 @@ def _auto_write_files(file_blocks: List[Dict], cwd: str) -> List[str]:
     written = []
     for fb in file_blocks:
         path = fb["path"]
-        # Make relative paths absolute to cwd
-        if not os.path.isabs(path):
-            path = os.path.join(cwd, path)
+        # Force all paths to be relative to the workspace (cwd)
+        # Strip leading slashes or Windows drive letters from the LLM's hallucinated paths
+        path = path.replace("\\", "/")
+        if ":" in path:
+            path = path.split(":", 1)[1]
+        path = path.lstrip("/")
+        
+        path = os.path.join(cwd, path)
         r = file_tools.write_file(path, fb["content"])
         if r["ok"]:
             print(f"   📝 Written: {r['path']}")

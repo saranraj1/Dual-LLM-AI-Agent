@@ -251,7 +251,8 @@ class Agent:
         full    = ""
         backend = get_backend()
 
-        for token in ask_stream(prompt, system=SYSTEM_PROMPT, backend=backend):
+        from agent.executor import AUTONOMOUS_SYSTEM
+        for token in ask_stream(prompt, system=AUTONOMOUS_SYSTEM, backend=backend):
             stream_token(token)
             full += token
         print()

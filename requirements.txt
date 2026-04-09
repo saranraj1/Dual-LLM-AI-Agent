@@ -1,0 +1,6 @@
+requests==2.31.0
+flake8>=6.0.0
+black>=23.0.0
+pypdf>=3.0.0
+python-docx>=0.8.11
+rich>=13.0.0
