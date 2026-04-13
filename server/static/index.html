@@ -802,26 +802,63 @@ function runTask() {
 async function sendMessage(msg, asTask = false) {
   hideWelcome();
   appendMessage('user', msg);
-  const typingId = appendTyping();
   setStreaming(true);
 
-  const endpoint = (asTask || currentMode === 'run') ? '/run' : '/chat';
-  const body     = (asTask || currentMode === 'run')
-    ? JSON.stringify({ task: msg })
-    : JSON.stringify({ message: msg });
+  const isSlash = msg.startsWith('/') && !asTask && currentMode !== 'run';
+  const endpoint = asTask || currentMode === 'run'
+    ? '/run'
+    : isSlash ? '/command' : '/chat';
 
   try {
+    if (isSlash) {
+      // ── Slash command — blocking JSON response ───────────────────────────
+      const typingId = appendTyping();
+      const resp = await fetch(API + '/command', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ command: msg }),
+      });
+      removeTyping(typingId);
+
+      const data = await resp.json();
+      if (!resp.ok) {
+        appendMessage('agent', `❌ **${resp.status}**: ${data.detail || JSON.stringify(data)}`);
+        toast(`Command failed: ${resp.status}`, 'error');
+      } else {
+        const result = data.result || '(no output)';
+        const msgId = appendAgentMessage();
+        // Simulate streaming feel for large results
+        appendToken(msgId, result);
+        finaliseMessage(msgId);
+      }
+      refreshStats();
+      return;
+    }
+
+    // ── Chat / Run — SSE streaming ────────────────────────────────────────
+    const typingId = appendTyping();
+    const body = asTask || currentMode === 'run'
+      ? JSON.stringify({ task: msg })
+      : JSON.stringify({ message: msg });
+
     const resp = await fetch(API + endpoint, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) {
+      removeTyping(typingId);
+      const errText = await resp.text().catch(() => resp.statusText);
+      appendMessage('agent', `❌ **HTTP ${resp.status}**: ${errText}`);
+      toast(`Server error: ${resp.status}`, 'error');
+      return;
+    }
 
     removeTyping(typingId);
     const msgId = appendAgentMessage();
 
-    const reader = resp.body.getReader();
+    const reader  = resp.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
 
@@ -829,30 +866,25 @@ async function sendMessage(msg, asTask = false) {
       const { done, value } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
-      // Parse SSE frames
       const lines = buf.split('\n');
-      buf = lines.pop(); // incomplete line stays in buffer
+      buf = lines.pop();
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           try {
             const token = JSON.parse(line.slice(6));
-            appendToken(msgId, token);
+            if (token) appendToken(msgId, token);
           } catch {}
         }
-        if (line.startsWith('event: done')) {
-          finaliseMessage(msgId);
-        }
-        if (line.startsWith('event: error')) {
-          toast('Streaming error', 'error');
-        }
+        if (line.startsWith('event: done'))  finaliseMessage(msgId);
+        if (line.startsWith('event: error')) toast('Streaming error', 'error');
       }
     }
     finaliseMessage(msgId);
     refreshStats();
+
   } catch (err) {
-    removeTyping(typingId);
-    appendMessage('system', `❌ Error: ${err.message}`);
+    appendMessage('system', `❌ Network error: ${err.message}. Is the server running?`);
     toast(err.message, 'error');
   } finally {
     setStreaming(false);
