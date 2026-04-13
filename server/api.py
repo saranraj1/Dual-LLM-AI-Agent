@@ -26,6 +26,7 @@ import time
 import traceback
 from pathlib import Path
 from typing import Optional, AsyncGenerator
+from functools import partial
 
 # ── App root on sys.path ──────────────────────────────────────────────────────
 _ROOT = Path(__file__).parent.parent
@@ -148,14 +149,36 @@ def _sse_event(data: str, event: str = "token") -> str:
 
 
 async def _stream_response(gen) -> AsyncGenerator[str, None]:
-    """Convert a synchronous str generator into async SSE frames."""
+    """
+    Convert a synchronous blocking generator into async SSE frames.
+    Each token is fetched in a thread-pool worker so the event loop
+    stays free (health/stats endpoints remain responsive during LLM calls).
+    """
+    loop  = asyncio.get_event_loop()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=64)
+    DONE  = object()   # sentinel
+
+    def _feed():
+        try:
+            for token in gen:
+                loop.call_soon_threadsafe(queue.put_nowait, token)
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, exc)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, DONE)
+
+    loop.run_in_executor(None, _feed)
+
     try:
-        for token in gen:
-            yield _sse_event(token, "token")
-            await asyncio.sleep(0)
-    except Exception as e:
-        log.error("stream error: %s", e)
-        yield _sse_event(str(e), "error")
+        while True:
+            item = await queue.get()
+            if item is DONE:
+                break
+            if isinstance(item, Exception):
+                log.error("stream error: %s", item)
+                yield _sse_event(str(item), "error")
+                break
+            yield _sse_event(item, "token")
     finally:
         yield _sse_event("", "done")
 
@@ -370,15 +393,19 @@ async def run_command_endpoint(req: CommandRequest):
 
     try:
         import inspect as _inspect
+        loop   = asyncio.get_event_loop()
         sig    = _inspect.signature(method)
         params = list(sig.parameters.keys())
-        # Call with args only if method accepts a parameter (excluding 'self')
-        if params and params[0] not in ("self",):
-            result = method(args)
-        elif len(params) > 1:
-            result = method(args)
-        else:
-            result = method()
+
+        def _call():
+            if params and params[0] not in ("self",):
+                return method(args)
+            elif len(params) > 1:
+                return method(args)
+            else:
+                return method()
+
+        result = await loop.run_in_executor(None, _call)
         return {"ok": True, "command": raw_cmd, "result": result or ""}
     except HTTPException:
         raise

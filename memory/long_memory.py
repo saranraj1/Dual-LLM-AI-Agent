@@ -69,7 +69,7 @@ def _migrate_json_if_needed(conn: sqlite3.Connection) -> None:
 # ── Connection factory ─────────────────────────────────────────────────────────
 
 def _get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")   # safe for concurrent access
     conn.executescript(_SCHEMA)
