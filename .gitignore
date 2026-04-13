@@ -33,6 +33,15 @@ venv.bak/
 .env.*.local
 *.secret
 
+# ── Office & binary documents (keep out of git) ───────────────────────────────
+*.docx
+*.doc
+*.xlsx
+*.xls
+*.pptx
+*.ppt
+*.pdf
+
 # ── IDE & OS ──────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
