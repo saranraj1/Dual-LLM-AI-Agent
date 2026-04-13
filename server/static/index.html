@@ -204,6 +204,56 @@ body {
 .mode-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
 .mode-tab.active { background: var(--accent-glow); color: var(--accent); font-weight: 500; }
 
+/* ── Backend selector ──────────────────────────────────────────────────────── */
+.backend-selector {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-left: 8px;
+}
+.backend-selector-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0 6px 0 4px;
+  border-right: 1px solid var(--border);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+.backend-btn {
+  background: none;
+  border: none;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.backend-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.backend-btn.active-auto  { background: var(--accent-glow); color: var(--accent); }
+.backend-btn.active-local { background: rgba(63,185,80,0.15); color: var(--green); }
+.backend-btn.active-groq  { background: rgba(188,140,255,0.15); color: var(--purple); }
+.backend-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.backend-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.backend-dot.up   { background: var(--green); }
+.backend-dot.down { background: var(--red); }
+
+
 /* ── Chat area ─────────────────────────────────────────────────────────────── */
 .chat-area {
   flex: 1;
@@ -609,6 +659,21 @@ body {
         <button class="mode-tab active" id="tab-chat" onclick="setMode('chat')">💬 Chat</button>
         <button class="mode-tab"        id="tab-run"  onclick="setMode('run')">⚡ Run Task</button>
       </div>
+
+      <!-- ── Backend selector ─────────────────────────────────── -->
+      <div class="backend-selector" id="backend-selector" title="Select LLM backend">
+        <span class="backend-selector-label">Model</span>
+        <button class="backend-btn" id="btn-auto"  onclick="switchBackend('auto')">
+          <span class="backend-dot" id="dot-auto"></span>Auto
+        </button>
+        <button class="backend-btn" id="btn-local" onclick="switchBackend('local')">
+          <span class="backend-dot" id="dot-local"></span>Local
+        </button>
+        <button class="backend-btn" id="btn-groq"  onclick="switchBackend('groq')">
+          <span class="backend-dot" id="dot-groq"></span>Groq
+        </button>
+      </div>
+
       <div class="topbar-title" id="topbar-title">Coding Assistant</div>
       <div class="topbar-actions">
         <button class="icon-btn" onclick="refreshStats()" title="Refresh stats">↻ Stats</button>
@@ -1051,16 +1116,79 @@ function escapeHTML(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Backend selector ─────────────────────────────────────────────────────────
+let _currentBackend = 'auto';
+
+async function switchBackend(choice) {
+  if (isStreaming) { toast('Cannot switch while streaming', 'error'); return; }
+  const btn = document.getElementById(`btn-${choice}`);
+  if (!btn || btn.disabled) return;
+
+  // Optimistic UI
+  _setBackendUI(choice);
+
+  try {
+    const r = await fetch(API + '/backend', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ backend: choice }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      toast(`❌ ${d.detail || 'Switch failed'}`, 'error');
+      _setBackendUI(_currentBackend); // revert
+      return;
+    }
+    _currentBackend = choice;
+    toast(`✅ ${d.message}`, 'success');
+    refreshStats();
+  } catch (e) {
+    toast('Network error switching backend', 'error');
+    _setBackendUI(_currentBackend);
+  }
+}
+
+function _setBackendUI(active) {
+  ['auto', 'local', 'groq'].forEach(b => {
+    const btn = document.getElementById(`btn-${b}`);
+    if (!btn) return;
+    btn.className = 'backend-btn' + (b === active ? ` active-${b}` : '');
+  });
+  // Also update stats panel
+  const el = document.getElementById('stat-backend');
+  if (el) el.textContent = active;
+}
+
+async function _syncBackendSelector(ollamaUp, groqUp, currentBackend) {
+  // Disable buttons for unavailable backends
+  const localBtn = document.getElementById('btn-local');
+  const groqBtn  = document.getElementById('btn-groq');
+  if (localBtn) localBtn.disabled = !ollamaUp;
+  if (groqBtn)  groqBtn.disabled  = !groqUp;
+
+  // Set dots
+  const dotMap = { auto: ollamaUp || groqUp, local: ollamaUp, groq: groqUp };
+  ['auto', 'local', 'groq'].forEach(b => {
+    const dot = document.getElementById(`dot-${b}`);
+    if (dot) dot.className = 'backend-dot ' + (dotMap[b] ? 'up' : 'down');
+  });
+
+  // Set active button
+  _setBackendUI(currentBackend);
+  _currentBackend = currentBackend;
+}
+
 // ── Stats ─────────────────────────────────────────────────────────────────────
 async function refreshStats() {
   try {
-    const [health, stats, mem] = await Promise.all([
-      fetch(API + '/health').then(r => r.json()),
-      fetch(API + '/stats').then(r => r.json()),
-      fetch(API + '/memory').then(r => r.json()),
+    const [health, stats, mem, backend] = await Promise.all([
+      fetch(API + '/health').then(r  => r.json()),
+      fetch(API + '/stats').then(r   => r.json()),
+      fetch(API + '/memory').then(r  => r.json()),
+      fetch(API + '/backend').then(r => r.json()),
     ]);
 
-    // Sidebar backend status
+    // Sidebar backend status dots
     const od = document.getElementById('ollama-dot');
     const gd = document.getElementById('groq-dot');
     od.className = 'dot ' + (health.ollama ? 'green' : 'red');
@@ -1068,18 +1196,26 @@ async function refreshStats() {
     document.getElementById('ollama-label').textContent = 'Ollama: ' + (health.ollama ? 'Online' : 'Offline');
     document.getElementById('groq-label').textContent   = 'Groq: '   + (health.groq   ? 'Online' : 'Offline');
 
+    // Sync backend selector buttons
+    await _syncBackendSelector(health.ollama, health.groq, backend.backend || health.backend || 'auto');
+
     // Stats panel
-    document.getElementById('stat-backend').textContent     = health.backend || '—';
-    document.getElementById('stat-ollama').textContent      = health.ollama ? '✓ Online' : '✗ Offline';
-    document.getElementById('stat-groq').textContent        = health.groq   ? '✓ Online' : '✗ Offline';
+    const backendColors = { auto: 'accent', local: 'green', groq: 'orange' };
+    const bel = document.getElementById('stat-backend');
+    if (bel) {
+      bel.textContent = backend.backend || health.backend || '—';
+      bel.className   = 'stat-val ' + (backendColors[backend.backend] || 'accent');
+    }
+    document.getElementById('stat-ollama').textContent       = health.ollama ? '✓ Online' : '✗ Offline';
+    document.getElementById('stat-groq').textContent         = health.groq   ? '✓ Online' : '✗ Offline';
     document.getElementById('stat-ollama-calls').textContent = stats.llm?.ollama_calls ?? 0;
     document.getElementById('stat-groq-calls').textContent   = stats.llm?.groq_calls   ?? 0;
     document.getElementById('stat-cache').textContent        = stats.llm?.cache_hits    ?? 0;
 
     // Parse cost from summary string
-    const costMatch = (stats.cost_summary || '').match(/\$(\d+\.\d+)/);
+    const costMatch  = (stats.cost_summary || '').match(/\$(\d+\.\d+)/);
     const tokenMatch = (stats.cost_summary || '').match(/Tokens used\s*:\s*([\d,]+)/);
-    document.getElementById('stat-cost').textContent   = costMatch  ? '$' + costMatch[1]  : '$0.0000';
+    document.getElementById('stat-cost').textContent   = costMatch  ? '$' + costMatch[1] : '$0.0000';
     document.getElementById('stat-tokens').textContent = tokenMatch ? tokenMatch[1] : '0';
 
     document.getElementById('stat-short').textContent = mem.short_turns ?? 0;
@@ -1087,7 +1223,7 @@ async function refreshStats() {
     document.getElementById('stat-fixes').textContent = mem.fix_patterns ?? 0;
 
   } catch (err) {
-    // Silently fail stats — don't interrupt the UI
+    // Silently fail — don't interrupt the UI
   }
 }
 
@@ -1108,12 +1244,17 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshStats();
   setInterval(refreshStats, 15000);
 
-  // Keyboard shortcut: Ctrl+K to focus input
+  // Keyboard shortcuts
   document.addEventListener('keydown', e => {
+    // Ctrl+K → focus input
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       document.getElementById('chat-input').focus();
     }
+    // Ctrl+1/2/3 → switch backend
+    if ((e.ctrlKey || e.metaKey) && e.key === '1') switchBackend('auto');
+    if ((e.ctrlKey || e.metaKey) && e.key === '2') switchBackend('local');
+    if ((e.ctrlKey || e.metaKey) && e.key === '3') switchBackend('groq');
   });
 });
 </script>

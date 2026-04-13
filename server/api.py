@@ -289,6 +289,52 @@ async def run_task(req: RunRequest):
     )
 
 
+# ── Backend selector ──────────────────────────────────────────────────────────
+
+class BackendRequest(BaseModel):
+    backend: str   # "auto" | "local" | "groq"
+
+_BACKEND_LABELS = {
+    "auto":  "Auto (Ollama → Groq fallback)",
+    "local": "Local (Ollama only)",
+    "groq":  "Groq Cloud (fast)",
+}
+
+@app.get("/backend")
+async def get_backend_route():
+    """Return the current active LLM backend."""
+    from core.llm import get_backend, is_running, is_groq_available
+    current = get_backend()
+    return {
+        "backend":      current,
+        "label":        _BACKEND_LABELS.get(current, current),
+        "ollama_up":    is_running(),
+        "groq_up":      is_groq_available(),
+        "available":    list(_BACKEND_LABELS.keys()),
+    }
+
+@app.post("/backend")
+async def set_backend_route(req: BackendRequest):
+    """Switch the active LLM backend (auto / local / groq)."""
+    from core.llm import set_backend, is_running, is_groq_available
+    choice = req.backend.strip().lower()
+    if choice not in _BACKEND_LABELS:
+        raise HTTPException(400, f"Invalid backend '{choice}'. Choose: auto, local, groq")
+
+    if choice == "local" and not is_running():
+        raise HTTPException(503, "Ollama is offline — cannot switch to local backend")
+    if choice == "groq" and not is_groq_available():
+        raise HTTPException(503, "Groq is unavailable (check GROQ_API_KEY) — cannot switch to groq")
+
+    set_backend(choice)
+    log.info("backend switched to: %s", choice)
+    return {
+        "ok":      True,
+        "backend": choice,
+        "label":   _BACKEND_LABELS[choice],
+        "message": f"Switched to {_BACKEND_LABELS[choice]}",
+    }
+
 @app.post("/command")
 async def run_command_endpoint(req: CommandRequest):
     """
