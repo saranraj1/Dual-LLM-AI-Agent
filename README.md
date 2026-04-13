@@ -3,10 +3,11 @@
 [![CI](https://github.com/saranraj1/Dual-LLM-AI-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/saranraj1/Dual-LLM-AI-Agent/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen.svg)](#-testing)
+[![Version](https://img.shields.io/badge/version-1.1.0-blueviolet.svg)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > An **autonomous coding assistant** that lives entirely on your machine.  
-> It reads your project files, plans multi-step tasks, writes code, runs tests, and commits to git — all from a terminal chat interface.
+> It reads your project files, plans multi-step tasks, writes code, runs tests, and commits to git — all from a terminal chat interface **or a browser UI**.
 
 **Dual LLM backends** — runs **Ollama locally** (private, offline) first; transparently falls back to **Groq cloud** (300+ tok/s) when unavailable. No manual switching needed.
 
@@ -28,6 +29,9 @@ pip install -r requirements.txt
 
 # Or install as a package — enables the `ai` command globally
 pip install -e .
+
+# With Web UI + API server support
+pip install -e ".[server]"
 ```
 
 ### 2. Configure Secrets
@@ -54,18 +58,115 @@ If Ollama is offline, the agent automatically switches to Groq. Nothing to confi
 ### 4. Launch
 
 ```bash
-python main.py                         # interactive chat
-ai                                     # same, after pip install -e .
-python main.py --project /path/to/proj # point at another folder
-python main.py --task "add tests"      # one-shot mode, no shell
+# Terminal chat
+python main.py
+ai                                       # after pip install -e .
+
+# Web Chat UI + REST API
+python main.py --serve                   # opens http://localhost:8000
+ai --serve --port 8080                   # custom port
+
+# One-shot task
+python main.py --task "add unit tests"
+
+# Point at a specific project
+ai --project /path/to/my-project
+
+# Git hook setup
+ai --install-hook                        # install pre-commit hook
+ai --strict-hook                         # strict mode (blocks commits on issues)
 ```
 
 ---
 
-## 💬 All Commands
+## 🌐 Web Chat UI
 
-> Type any command below in the chat. Arguments in `<angle brackets>` are required, `[square brackets]` are optional.  
-> You can also just chat naturally — no slash needed for questions.
+Start the agent server and open your browser:
+
+```bash
+python main.py --serve
+# → http://localhost:8000
+```
+
+**Features:**
+- Real-time streaming token output (SSE)
+- Markdown rendering with syntax-highlighted code blocks
+- Sidebar with one-click command buttons
+- Live stats panel: backend status, tokens used, estimated cost, memory turns
+- `⚡ Run` button for autonomous multi-step task mode
+- `Ctrl+K` focus input · `Enter` to send · `Shift+Enter` for new lines
+
+**REST API** (OpenAPI docs at `/docs`):
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Web Chat UI |
+| `GET` | `/health` | Backend health (Ollama + Groq status) |
+| `POST` | `/chat` | Streaming SSE chat |
+| `POST` | `/run` | Autonomous task execution (SSE) |
+| `POST` | `/command` | Any `/slash command` via HTTP |
+| `GET` | `/memory` | Session + long-term memory stats |
+| `DELETE` | `/memory` | Clear all memory |
+| `GET` | `/stats` | LLM call stats + cost summary |
+| `GET` | `/files` | List workspace files |
+| `GET` | `/logs` | Last 50 structured log lines |
+
+---
+
+## 🧩 VS Code Extension
+
+The `vscode-extension/` folder contains a ready-to-install VS Code extension that calls all agent commands from inside the editor.
+
+### Install
+
+```bash
+cd vscode-extension
+npm install
+npm run package                              # builds ai-agent-vscode-1.1.0.vsix
+code --install-extension ai-agent-vscode-1.1.0.vsix
+```
+
+**Start the agent server first:**
+```bash
+ai --serve   # must be running at http://localhost:8000
+```
+
+### Commands Available Inside VS Code
+
+| Command | Shortcut | Description |
+|---------|----------|-------------|
+| Review This File | `Ctrl+Shift+R` | Code review with scores |
+| Fix Errors | — | Auto-detect and fix errors |
+| Explain This File | — | Plain-English explanation |
+| Refactor | — | Apply SOLID principles |
+| Security Scan | — | CRITICAL/HIGH/MEDIUM/LOW findings |
+| Generate Tests | — | Write + run pytest tests |
+| Explain Selection | `Ctrl+Shift+E` | Explain highlighted code |
+| Fix Selection | — | Fix code **inline** in the editor |
+| Open Chat UI | `Ctrl+Shift+A` | Open browser chat |
+| Run Task… | `Ctrl+Shift+T` | Type any autonomous task |
+| Generate API Docs | — | Scan routes → `docs/api.md` + OpenAPI |
+| Smart Git Commit | — | AI-generated commit message |
+
+Right-click any Python/JS file for the **🤖 AI Agent** context menu.
+
+**Status Bar:** Shows live Ollama + Groq health. Click to open chat.
+
+**Settings (`settings.json`):**
+```json
+{
+  "aiAgent.serverUrl": "http://localhost:8000",
+  "aiAgent.autoConnect": true,
+  "aiAgent.showStatusBar": true
+}
+```
+
+---
+
+## 💬 All Commands (Terminal)
+
+> Type any command below in the chat. `<angle brackets>` = required, `[square brackets]` = optional.  
+> You can also chat naturally — no slash needed for questions.
 
 ---
 
@@ -73,11 +174,11 @@ python main.py --task "add tests"      # one-shot mode, no shell
 
 | Command | Description |
 |---|---|
-| `/run <task>` | The main command. Breaks your task into steps, executes each one, writes files, reflects on results. Example: `/run add input validation to all API routes` |
-| `/scan [path]` | Re-scan the workspace to pick up new files. Pass a path to switch projects mid-session. Example: `/scan ../other-project` |
-| `/watch` | File watcher — monitors the workspace and auto-reviews any file you save |
-| `/help` | Show the full command menu |
-| `/quit` / `/exit` | Exit the agent |
+| `/run <task>` | Main command — plan, execute, auto-write, reflect. Example: `/run add input validation to all API routes` |
+| `/scan [path]` | Re-scan workspace or switch project. Example: `/scan ../other-project` |
+| `/watch` | File watcher — auto-reviews any file you save |
+| `/help` | Show full command menu |
+| `/quit` / `/exit` | Exit |
 
 ---
 
@@ -85,15 +186,15 @@ python main.py --task "add tests"      # one-shot mode, no shell
 
 | Command | Description |
 |---|---|
-| `/review [file]` | Deep code review with scores 1–10 for readability, performance, security, + specific suggestions. Omit filename to review the whole codebase. |
-| `/fix [file]` | Scans for syntax errors, broken imports, and exceptions — then auto-fixes them. Omit filename to check all `.py` files. |
-| `/optimize <file>` | Rewrites a file focused on performance — removes bottlenecks, suggests better algorithms, adds profiling hints |
-| `/refactor <file>` | Applies SOLID principles: extracts classes, reduces coupling, improves naming, removes duplication |
-| `/security [file]` | Security audit with severity levels (CRITICAL / HIGH / MEDIUM / LOW) — checks for injection, hardcoded secrets, insecure deserialization, and more |
-| `/test [file]` | Generates pytest unit tests (happy paths, edge cases, error handling), writes them to `test_<name>.py`, and runs them immediately |
-| `/lint [file\|fix]` | Runs `flake8` on a file or the whole project. Add `fix` at the end to auto-fix all issues: `/lint fix` |
-| `/format [file]` | Auto-formats with `black`. Omit filename to format all Python files |
-| `/todo [fix]` | Scans for `TODO`, `FIXME`, `HACK`, `BUG`, `XXX` comments and lists them. Add `fix` to have the agent implement them: `/todo fix` |
+| `/review [file]` | Deep review — scores 1–10 for readability, performance, security + suggestions. Omit filename for whole codebase |
+| `/fix [file]` | Scan for errors, broken imports, exceptions — auto-fix. Learns from past successful fixes |
+| `/optimize <file>` | Rewrite focused on performance — bottlenecks, algorithms, profiling hints |
+| `/refactor <file>` | Apply SOLID: extract classes, reduce coupling, improve naming |
+| `/security [file]` | Security audit — CRITICAL / HIGH / MEDIUM / LOW. Checks injection, secrets, deserialization |
+| `/test [file]` | Generate pytest tests (happy paths + edge cases), writes `test_<name>.py`, runs immediately |
+| `/lint [file\|fix]` | `flake8` on file or project. `/lint fix` auto-fixes issues |
+| `/format [file]` | `black` formatting. Omit filename to format all Python files |
+| `/todo [fix]` | Scan `TODO`, `FIXME`, `HACK`, `BUG`, `XXX` comments. `/todo fix` implements them |
 
 ---
 
@@ -101,11 +202,11 @@ python main.py --task "add tests"      # one-shot mode, no shell
 
 | Command | Description |
 |---|---|
-| `/explain <file>` | Deep plain-English explanation — what it does, how it works, key components, gotchas, and what a new developer needs to know |
-| `/diff [file]` | Shows git diff for a file. Falls back to comparing the current file against the agent's backup if git is unavailable |
-| `/undo <file>` | Instantly restores a file to its state before the agent last edited it. Every agent edit creates a backup automatically |
-| `/run-file <file> [args]` | Runs a Python file. If it crashes, the agent reads the error, fixes the code, and runs it again automatically |
-| `/translate <file> <language>` | Translates a file to another programming language using idiomatic patterns. Example: `/translate utils.py typescript` |
+| `/explain <file>` | Plain-English walkthrough — purpose, components, gotchas, onboarding guide |
+| `/diff [file]` | Git diff, or compare against agent backup if git unavailable |
+| `/undo <file>` | Restore file to pre-agent state (every edit is backed up first) |
+| `/run-file <file> [args]` | Run Python file; if it crashes, agent reads error, fixes code, and reruns |
+| `/translate <file> <lang>` | Translate to another language. Example: `/translate utils.py typescript` |
 
 Supported target languages: Python, JavaScript, TypeScript, Java, C++, C#, Go, Ruby, PHP, Rust
 
@@ -115,14 +216,27 @@ Supported target languages: Python, JavaScript, TypeScript, Java, C++, C#, Go, R
 
 | Command | Description |
 |---|---|
-| `/docs [file]` | With a filename: adds Google-style docstrings to every function and class. Without: generates a full `README.md` for your project |
-| `/scaffold <type>` | Creates a complete, runnable project skeleton with real boilerplate. See scaffold types below |
-| `/diagram` | Generates an ASCII architecture diagram + a Mermaid diagram saved to `docs/architecture.md` |
-| `/stats` | Lines of code, file counts, breakdown by extension, largest files |
-| `/deps` | Dependency analysis — which third-party packages are imported, which are installed, which are missing. AI suggests outdated packages |
-| `/summarize [file]` | Plain-English project summary covering components, data flow, key dependencies, and how to start contributing |
-| `/changelog` | Generates a professional `CHANGELOG.md` from your git history, grouped by Added / Changed / Fixed / Removed |
-| `/git [message]` | Smart git commit. Omit message to auto-generate a conventional commit message from the diff. Or pass your own: `/git fix auth bug` |
+| `/docs [file]` | File → add Google-style docstrings. No arg → generate `README.md` |
+| `/docs api` | **Scan all routes (Flask/FastAPI) → `docs/api.md` + `docs/openapi.yaml` (OpenAPI 3.0)** |
+| `/scaffold <type>` | Generate a complete project skeleton with real boilerplate |
+| `/diagram` | ASCII + Mermaid architecture diagram → `docs/architecture.md` |
+| `/stats` | Lines of code, file counts, extension breakdown, largest files |
+| `/deps` | Import analysis — which packages are imported, installed, missing |
+| `/summarize [file]` | Project summary: components, data flow, key deps, how to contribute |
+| `/changelog` | Generate `CHANGELOG.md` from git history (Added / Changed / Fixed / Removed) |
+| `/git [message]` | Smart commit. No message → AI-generates a conventional commit from diff |
+
+**`/docs api` output:**
+```
+docs/
+├── api.md          ← Markdown reference table with method badges
+└── openapi.yaml    ← OpenAPI 3.0 spec (import into Swagger UI, Postman, Insomnia)
+```
+
+Quick preview:
+```bash
+npx swagger-ui-cli serve docs/openapi.yaml
+```
 
 **Scaffold types:**
 
@@ -144,10 +258,10 @@ Or describe your own: `/scaffold a REST API that tracks gym workouts`
 
 | Command | Description |
 |---|---|
-| `/history [n]` | Shows last `n` messages from persistent SQLite memory (default: 10). Example: `/history 20` |
-| `/memory` | Shows memory stats — session turns, long-term turn count, LLM call stats, cache hits, backend info |
-| `/clear` | Wipes all memory (both session and SQLite long-term store) |
-| `/time` | Session duration, total LLM calls, cache hits, Ollama vs Groq call ratio |
+| `/history [n]` | Last `n` messages from SQLite long-term memory (default: 10) |
+| `/memory` | Session stats — turns, LLM calls, cache hits, backend, fix patterns learned |
+| `/clear` | Wipe all memory (session + SQLite) |
+| `/time` | Session duration, LLM calls, **cost tracker** ($0.0023 used · 4,200 tokens), log file path |
 
 ---
 
@@ -155,36 +269,23 @@ Or describe your own: `/scaffold a REST API that tracks gym workouts`
 
 | Command | Description |
 |---|---|
-| `/mode <name>` | Changes the agent's thinking style. See modes below |
-| `/model [backend]` | Switch LLM backend. No argument = show current. Example: `/model groq` |
-| `/config [key value]` | View or change settings live without restarting. Example: `/config gpu 0` |
-| `/benchmark` | Runs the same prompt on both backends and compares speed (tokens/sec) |
+| `/mode <name>` | Change thinking style. Modes: `normal` `debug` `architect` `tutor` `fast` `review` |
+| `/model [backend]` | Switch backend. No arg = show current. Example: `/model groq` |
+| `/config [key value]` | Change settings live. Example: `/config gpu 0` |
+| `/benchmark` | Compare Ollama vs Groq speed (tokens/sec) |
 
-**Modes:**
-
-| Mode | Focus |
-|---|---|
-| `normal` | Default — balanced reasoning |
-| `debug` | Error-finding, root-cause analysis, tracing |
-| `architect` | System design, structure, scalability |
-| `tutor` | Step-by-step explanations, beginner-friendly |
-| `fast` | Short, direct answers — minimal explanation |
-| `review` | Critical code review, finds problems aggressively |
-
-**Live config examples:**
-
+**Backend options:**
 ```
-/config gpu 0          CPU-only inference (set GPU_LAYERS to 0)
+/model auto    Ollama → Groq fallback (default)
+/model local   Force Ollama only
+/model groq    Force Groq cloud only
+```
+
+**Live config:**
+```
+/config gpu 0          CPU-only inference
 /config ctx 4096       Larger context window
 /config tokens 1024    Longer responses
-```
-
-**Backend switching:**
-
-```
-/model auto            Ollama → Groq fallback (default)
-/model local           Force local Ollama only
-/model groq            Force Groq cloud only
 ```
 
 ---
@@ -193,127 +294,134 @@ Or describe your own: `/scaffold a REST API that tracks gym workouts`
 
 | Command | Description |
 |---|---|
-| `/ask <url> [question]` | Fetches the content of any URL and lets you ask questions about it. Example: `/ask https://docs.python.org/3/library/asyncio.html how do I run a coroutine?` |
-| `/search <query>` | DuckDuckGo search → AI synthesised answer with sources. Example: `/search best Python async libraries 2024` |
-| `/export [filename]` | Saves the full conversation to a Markdown file. Default: `chat_history.md` |
+| `/ask <url> [question]` | Fetch URL content, ask about it. Example: `/ask https://docs.python.org/3/library/asyncio.html how do I run a coroutine?` |
+| `/search <query>` | DuckDuckGo search → AI synthesis with sources |
+| `/export [filename]` | Save full conversation to Markdown. Default: `chat_history.md` |
 
 ---
 
 ### 📚 Knowledge Base
 
-Index your own documentation, PDFs, code, or notes. The agent uses them as context when answering questions.
+Index your own docs, PDFs, code, or notes. The agent uses them as context for every answer.
 
 | Command | Description |
 |---|---|
-| `/kb add <file or folder>` | Index a file or entire folder. Example: `/kb add docs/` or `/kb add architecture.pdf` |
-| `/kb search <query>` | Semantic search across your indexed documents. Example: `/kb search "how does authentication work"` |
-| `/kb list` | Show all indexed documents with entry counts |
+| `/kb add <file or folder>` | Index files. Examples: `/kb add docs/` · `/kb add architecture.pdf` |
+| `/kb search <query>` | Semantic search. Example: `/kb search "how does auth work"` |
+| `/kb list` | All indexed documents with chunk counts |
 
 **Supported formats:** `.txt` `.md` `.py` `.js` `.ts` `.json` `.yaml` `.csv` `.pdf` `.docx`
 
 **Enable semantic (vector) search:**
-
 ```bash
-pip install sentence-transformers
-# or
-pip install -e ".[semantic]"
+pip install -e ".[semantic]"     # installs sentence-transformers
 ```
-
-Without `sentence-transformers`, keyword search is used automatically as a fallback.
+Without it, fast keyword search is used as a fallback.
 
 ---
 
-### 🖥️ Local Machine Features
+### 🖥️ Local Machine
 
 | Command | Description |
 |---|---|
-| `/clip on` | Enables clipboard monitor — automatically reviews any code you copy from anywhere |
-| `/clip off` | Disables clipboard monitoring |
-| `/digest` | Shows today's git activity, recently modified files, and a project health summary |
+| `/clip on` | Clipboard monitor — auto-review code you copy from anywhere |
+| `/clip off` | Disable clipboard monitoring |
+| `/digest` | Today's git activity, recently changed files, project health summary |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-Dual-LLM-AI-Agent/
+Dual-LLM-AI-Agent/                         v1.1.0
 │
-├── main.py                        Entry point + chat loop + command dispatch
+├── main.py                   Entry point + chat loop + dispatch
+│                             Flags: --serve --project --task --install-hook
+│
+├── server/                   NEW — REST API + Web UI
+│   ├── api.py                FastAPI: /chat /run /command /health /stats /logs
+│   └── static/index.html     Web Chat UI (streaming, markdown, stats panel)
+│
+├── vscode-extension/         NEW — VS Code Extension
+│   ├── package.json          12 commands, context menus, keybindings
+│   └── src/extension.js      Calls agent REST API; status bar; inline fix
 │
 ├── agent/
-│   ├── agent.py                   Agent class: startup scan, method dispatch, run loop
-│   ├── planner.py                 LLM → ordered step list for a task
-│   ├── executor.py                Executes steps, writes files (path-clamped sandbox)
-│   ├── reflection.py              Analyses success/failure after each step
-│   ├── cmd_legacy.py              /diff /history /undo /explain /test /fix /todo
-│   ├── commands_base.py           Shared backup utility
+│   ├── agent.py              Agent class: scan, dispatch, run loop
+│   ├── planner.py            LLM → ordered step list
+│   ├── executor.py           Execute steps, write files (path-clamped)
+│   ├── reflection.py         Analyse success/failure, retry
+│   ├── dependency_graph.py   NEW — AST import graph, topo sort, cycle detect
+│   ├── cmd_legacy.py         /diff /history /undo /fix (+ fix memory hints)
+│   ├── commands_base.py      Backup utility
 │   └── commands/
-│       ├── __init__.py            Unified export of all 25+ commands
-│       ├── code_quality.py        /review /optimize /refactor /security /format /lint
-│       ├── project.py             /docs /git /summarize /changelog /stats /deps /diagram /scaffold
-│       ├── files.py               /explain /diff /undo /run-file /translate
-│       ├── web.py                 /ask /search
-│       ├── settings.py            /mode /export /config /benchmark
-│       └── local.py               /kb /clip /digest /time
+│       ├── code_quality.py   /review /optimize /refactor /security /lint /format
+│       ├── project.py        /docs /docs api /git /scaffold /stats /diagram /deps
+│       ├── files.py          /explain /diff /undo /run-file /translate
+│       ├── web.py            /ask /search
+│       ├── settings.py       /mode /export /config /benchmark
+│       └── local.py          /kb /clip /digest /time (with cost tracker)
 │
 ├── core/
-│   ├── llm.py                     Dual backend: Ollama + Groq, cache, streaming, auto-fallback
-│   ├── exceptions.py              Typed exception hierarchy (AgentError → LLMError → ...)
-│   ├── prompt_builder.py          System prompt + context injection
-│   └── ui.py                      Coloured terminal output, spinner, stream_token
+│   ├── llm.py                Dual backend + cache + streaming + auto-fallback
+│   ├── retry.py              NEW — Exponential backoff + jitter + Retry-After
+│   ├── cost_tracker.py       NEW — Token counting, Groq pricing, daily history
+│   ├── logger.py             NEW — JSON rotating log + coloured console
+│   ├── exceptions.py         AgentError → LLMError → BackendUnavailableError
+│   ├── prompt_builder.py     System prompt + context injection
+│   └── ui.py                 Coloured terminal, spinner, stream_token
 │
 ├── memory/
-│   ├── long_memory.py             SQLite persistent memory (auto-migrates from JSON, WAL mode)
-│   └── short_memory.py            In-session conversation turns (last 10)
+│   ├── long_memory.py        SQLite persistent memory (WAL, keyword search)
+│   ├── short_memory.py       In-session turns (last 10)
+│   └── fix_memory.py         NEW — SQLite fix pattern store; hint injection
 │
 ├── tools/
-│   ├── knowledge_base.py          Semantic vector search (sentence-transformers + SQLite BLOBs)
-│   ├── file_tools.py              read / write / scan / search
-│   ├── terminal_tools.py          Cross-platform shell (bash on Linux/Mac, cmd on Windows)
-│   ├── notifications.py           Desktop notifications (Windows toast / macOS / Linux notify-send)
-│   ├── clipboard_monitor.py       Background thread, detects code in clipboard
-│   └── code_tools.py              lint_python(), run_python_file(), syntax check
+│   ├── api_doc_scanner.py    NEW — AST route scanner, Markdown + OpenAPI gen
+│   ├── knowledge_base.py     Semantic vector search + SQLite BLOBs
+│   ├── file_tools.py         read / write / scan / search
+│   ├── terminal_tools.py     Cross-platform shell (bash/cmd/pwsh)
+│   ├── notifications.py      OS notifications (Win toast / macOS / Linux)
+│   ├── clipboard_monitor.py  Background clipboard watcher
+│   └── code_tools.py         lint_python(), run_python_file()
 │
 ├── config/
-│   └── settings.py                Loads .env via python-dotenv, all tunable constants
+│   └── settings.py           python-dotenv → typed constants
 │
-├── tests/                         pytest — 33 tests, all passing
-│   ├── test_cache.py
-│   ├── test_executor.py
-│   ├── test_file_tools.py
-│   ├── test_llm_fallback.py
-│   └── test_planner.py
+├── scripts/
+│   ├── install_git_hook.py   Pre-commit hook installer
+│   └── validate_features.py  Feature smoke-test script
 │
-├── .env.example                   Copy to .env and fill in GROQ_API_KEY
-├── .github/workflows/ci.yml       GitHub Actions: test matrix Python 3.11 & 3.12 + flake8
-├── pyproject.toml                 Package config, extras, pytest + flake8 config
-└── requirements.txt               Pinned dependencies
+├── tests/                    33 passing (pytest · GitHub Actions CI)
+├── .env.example              Template — copy to .env
+├── .github/workflows/ci.yml  Matrix: Python 3.11 & 3.12 + flake8
+└── pyproject.toml            v1.1.0 — extras: server, semantic, dev, all
 ```
 
-**44 Python files · 7,400+ lines**
+**56 Python files · 9,000+ lines**
 
 ---
 
 ## ⚙️ Configuration Reference
 
-All settings are in `config/settings.py` and can be overridden via `.env`:
+All settings live in `config/settings.py` and can be overridden via `.env`:
 
 | Variable | Default | Description |
 |---|---|---|
 | `GROQ_API_KEY` | *(from .env)* | Groq cloud API key |
 | `OLLAMA_HOST` | `http://localhost:11434` | Local Ollama server |
-| `MODEL_NAME` | `phi3:mini` | Ollama model name |
-| `GPU_LAYERS` | `33` | GPU layers offloaded (0 = CPU-only) |
-| `CPU_THREADS` | `6` | CPU threads for inference |
-| `MAX_TOKENS` | `512` | Max tokens per LLM response |
+| `MODEL_NAME` | `phi3:mini` | Ollama model |
+| `GPU_LAYERS` | `33` | GPU layers (0 = CPU-only) |
+| `CPU_THREADS` | `6` | Inference CPU threads |
+| `MAX_TOKENS` | `512` | Max tokens per response |
 | `CONTEXT_WINDOW` | `2048` | Context window size |
 | `AUTO_FALLBACK` | `True` | Auto-switch to Groq if Ollama fails |
-| `ALLOW_SHELL` | `True` | `False` = disable all shell commands |
-| `ALLOW_WRITE` | `True` | `False` = agent becomes read-only |
-| `SHELL_TIMEOUT` | `15` | Seconds before killing a shell command |
+| `ALLOW_SHELL` | `True` | `False` = disable shell commands |
+| `ALLOW_WRITE` | `True` | `False` = read-only mode |
+| `SHELL_TIMEOUT` | `15` | Kill shell after N seconds |
 | `MAX_PLAN_STEPS` | `6` | Max steps per `/run` task |
-| `MAX_REFLECT_LOOPS` | `2` | Max retries after a step fails |
-| `SHORT_MEMORY_MAX` | `10` | In-session turns to keep in context |
+| `MAX_REFLECT_LOOPS` | `2` | Retries after step failure |
+| `SHORT_MEMORY_MAX` | `10` | In-session turns in context |
 
 ---
 
@@ -321,11 +429,13 @@ All settings are in `config/settings.py` and can be overridden via `.env`:
 
 | Mechanism | Protection |
 |---|---|
-| **`.env` isolation** | API keys never touch git — `.env` is in `.gitignore`, only `.env.example` is committed |
-| **Path clamping** | Agent can only write inside your project folder — LLM-hallucinated absolute paths are stripped |
+| **`.env` isolation** | API keys never touch git — `.gitignore` enforced, `*.docx/*.pdf` also excluded |
+| **Path clamping** | Agent can only write inside the project folder |
 | **Shell blocklist** | `rm -rf /`, `dd if=`, `shutdown`, `curl \| bash` — rejected before execution |
-| **Auto-backup** | Every file the agent edits is backed up to `.agent_backups/` first |
+| **Auto-backup** | Every agent edit backed up to `.agent_backups/` first |
 | **`/undo <file>`** | Instantly restore any file to its pre-agent state |
+| **Pre-commit hook** | `ai --install-hook` — blocks hardcoded secrets + linting errors before commit |
+| **Structured logging** | All agent actions logged to `~/.ai_agent/logs/agent.log` (JSON rotating, 5 MB × 5) |
 
 ---
 
@@ -337,44 +447,67 @@ pytest tests/ --cov=core --cov=agent --cov=tools --cov=memory --cov-report=term-
 pytest tests/test_executor.py -v                          # single module
 ```
 
-CI runs on every push via GitHub Actions (Python 3.11 + 3.12).
+CI runs on every push via GitHub Actions (Python 3.11 + 3.12 matrix).
 
 ---
 
 ## 📦 Package Install & CLI Flags
 
 ```bash
-pip install -e .                    # standard
-pip install -e ".[semantic]"        # + sentence-transformers for vector KB
-pip install -e ".[dev]"             # + pytest + pytest-cov
-pip install -e ".[all]"             # everything
+pip install -e .                     # standard install
+pip install -e ".[server]"           # + FastAPI Web UI
+pip install -e ".[semantic]"         # + sentence-transformers (vector KB)
+pip install -e ".[dev]"              # + pytest + pytest-cov
+pip install -e ".[all]"              # everything
 ```
 
 ```bash
-ai                                           # interactive chat in current folder
-ai --project ~/my-project                    # point at a specific project
-ai --task "write unit tests for utils.py"    # one-shot, no interactive shell
-ai --memory                                  # show memory stats and exit
-ai --clear                                   # wipe all memory and exit
-ai --no-check                                # skip backend check on startup
+ai                                           # interactive chat
+ai --project ~/my-project                    # target a specific project
+ai --task "write unit tests for utils.py"    # one-shot, no shell
+ai --serve                                   # start Web UI + REST API
+ai --serve --port 8080                       # custom port
+ai --memory                                  # show stats and exit
+ai --clear                                   # wipe memory and exit
+ai --no-check                                # skip backend startup check
+ai --install-hook                            # install git pre-commit hook
+ai --strict-hook                             # hook in strict mode
+ai --remove-hook                             # uninstall hook
 ```
 
 ---
 
-## 🗺️ Improvement Roadmap
+## 🗺️ Full Feature History
 
-| Step | Status | Feature |
-|---|---|---|
-| 1 | ✅ Done | Modularise monolithic 1300-line `commands_extended.py` into 6 focused modules |
-| 2 | ✅ Done | pytest suite — 33 tests covering cache, fallback, planner, executor, file tools |
-| 3 | ✅ Done | SQLite long-term memory — replaces JSON, auto-migrates, WAL mode, keyword search |
-| 4 | ✅ Done | Cross-platform — Windows, macOS, Linux (shell execution + desktop notifications) |
-| 5 | ✅ Done | Semantic KB search — `sentence-transformers` + SQLite BLOB embeddings, keyword fallback |
-| 6 | ✅ Done | Stream all commands — real-time token output, no blocking waits anywhere |
-| 7 | ✅ Done | Typed exception hierarchy — `AgentError → LLMError → BackendUnavailableError` |
-| 8 | ✅ Done | `.env` secret management via `python-dotenv` — zero hardcoded keys in source |
-| 9 | ✅ Done | GitHub Actions CI — matrix Python 3.11 & 3.12 + flake8 lint job |
-| 10 | ✅ Done | `pyproject.toml` packaging — `pip install -e .` + `ai` CLI entrypoint |
+### Original Roadmap (Steps 1–10)
+
+| Step | Feature |
+|---|---|
+| 1 ✅ | Modularise `commands_extended.py` → 6 focused modules |
+| 2 ✅ | pytest suite — 33 tests (cache, fallback, planner, executor, file tools) |
+| 3 ✅ | SQLite long-term memory — replaces JSON, WAL mode, keyword search |
+| 4 ✅ | Cross-platform — Windows, macOS, Linux |
+| 5 ✅ | Semantic KB search — `sentence-transformers` + SQLite BLOB embeddings |
+| 6 ✅ | Stream all commands — real-time tokens, no blocking |
+| 7 ✅ | Typed exception hierarchy — `AgentError → LLMError → BackendUnavailableError` |
+| 8 ✅ | `.env` secret management via `python-dotenv` |
+| 9 ✅ | GitHub Actions CI — Python 3.11 & 3.12 matrix + flake8 |
+| 10 ✅ | `pyproject.toml` packaging — `pip install -e .` + `ai` CLI |
+
+### Extended Roadmap (v1.1.0)
+
+| Feature | What Was Built |
+|---|---|
+| REST API Server | FastAPI with 10 endpoints, SSE streaming, CORS, OpenAPI auto-docs at `/docs` |
+| Web Chat UI | Dark-theme browser UI — streaming, markdown, syntax highlight, stats panel |
+| Dependency Graph | AST import parsing, topological sort (Kahn's), cycle detection, impact analysis |
+| Fix Memory | SQLite fix patterns, error normalisation, ranked hint injection into `/fix` |
+| Cost Tracker | Groq pricing table (8 models), real token counts from API, daily SQLite history |
+| Structured Logging | JSON rotating file log + coloured console, session IDs, `/logs` API endpoint |
+| Retry & Backoff | Exponential backoff + jitter, Retry-After header, `@retryable` decorator |
+| Git Hooks | `ai --install-hook` / `--strict-hook` / `--remove-hook` |
+| VS Code Extension | 12 commands, status bar, context menus, inline fix, task runner |
+| API Doc Scanner | AST route scanner (Flask/FastAPI), Markdown + OpenAPI 3.0 YAML generator |
 
 ---
 
@@ -385,7 +518,7 @@ ai --no-check                                # skip backend check on startup
 - RAM: 16 GB DDR4
 - OS: Windows 11 + Ubuntu 22.04
 
-For weaker hardware: put `GPU_LAYERS=0` in `.env` or run `/config gpu 0` live. Groq cloud (free tier, 300+ tok/s) is always available as a fallback.
+For weaker hardware: `GPU_LAYERS=0` in `.env` or `/config gpu 0` live. Groq (free tier, 300+ tok/s) always available as fallback.
 
 ---
 
@@ -395,4 +528,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Python 3.11 · Ollama · Groq LLaMA 3.3 70B · sentence-transformers · SQLite · pytest · GitHub Actions*
+*Python 3.11 · Ollama · Groq LLaMA 3.3 70B · FastAPI · sentence-transformers · SQLite · pytest · GitHub Actions*

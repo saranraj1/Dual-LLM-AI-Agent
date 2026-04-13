@@ -17,10 +17,18 @@ import ast
 import os
 import re
 import json
-import yaml
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from config.settings import SKIP_DIRS
+
+# PyYAML is optional — fall back to JSON if not installed
+try:
+    import yaml as _yaml
+    def _to_yaml(obj: dict) -> str:
+        return _yaml.dump(obj, default_flow_style=False, sort_keys=False, allow_unicode=True)
+except ImportError:
+    def _to_yaml(obj: dict) -> str:  # type: ignore
+        return json.dumps(obj, indent=2)
 
 
 # ── Data structures ──────────────────────────────────────────────────────────
@@ -375,10 +383,7 @@ def generate_api_docs(root: str, project_name: str = "API") -> Dict[str, str]:
     md        = generate_markdown(endpoints, title=f"{project_name} — API Reference")
     openapi   = generate_openapi(endpoints,  title=project_name)
 
-    try:
-        openapi_yaml = yaml.dump(openapi, default_flow_style=False, sort_keys=False, allow_unicode=True)
-    except ImportError:
-        openapi_yaml = json.dumps(openapi, indent=2)
+    openapi_yaml = _to_yaml(openapi)
 
     summary_lines = [
         f"📡 Found {len(endpoints)} endpoint{'s' if len(endpoints) != 1 else ''}",

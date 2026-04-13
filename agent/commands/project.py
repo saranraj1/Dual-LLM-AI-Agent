@@ -387,8 +387,45 @@ def cmd_deps(agent, args: str) -> str:
 # ── /diagram ──────────────────────────────────────────────────────────────────
 
 def cmd_diagram(agent, args: str) -> str:
+    from tools.file_tools import list_dir
+
     tree = list_dir(agent.workspace, depth=3)
     tree_str = "\n".join(e["path"] for e in tree["entries"][:40]) if tree["ok"] else ""
+
+    # ── Real import dependency analysis (Feature 6) ───────────────────────────
+    dep_summary = ""
+    dep_mermaid = ""
+    try:
+        from agent.dependency_graph import DependencyGraph
+        print("\n🔗 Building import dependency graph...")
+        graph = DependencyGraph.build(agent.workspace)
+        dep_summary = graph.summary()
+
+        # Build a Mermaid graph from real import edges (top 20 edges)
+        mermaid_lines = ["graph TD"]
+        edge_count = 0
+        for mod, deps in list(graph.edges.items())[:15]:
+            src = mod.replace(".", "_").replace("/", "_")
+            for dep in list(deps)[:3]:
+                dst = dep.replace(".", "_").replace("/", "_")
+                mermaid_lines.append(f"    {src} --> {dst}")
+                edge_count += 1
+                if edge_count >= 20:
+                    break
+            if edge_count >= 20:
+                break
+
+        cycles = graph.find_cycles()
+        if cycles:
+            mermaid_lines.append("")
+            for c in cycles[:2]:
+                mermaid_lines.append(f"    %% CYCLE: {' → '.join(c)}")
+
+        dep_mermaid = "\n".join(mermaid_lines)
+        print(dep_summary)
+    except Exception as e:
+        dep_summary = f"(dependency graph unavailable: {e})"
+
     prompt = f"""Generate two things:
 
 1. An ASCII architecture diagram showing how the main components connect
@@ -397,11 +434,26 @@ def cmd_diagram(agent, args: str) -> str:
 2. A Mermaid diagram (graph TD format) of the same architecture
    Save it as FILE: docs/architecture.md
 
+The file must include:
+- The AI-generated ASCII diagram
+- The AI-generated Mermaid diagram
+- The following REAL import dependency graph data (preserve as-is):
+
+## Import Dependency Graph
+```
+{dep_summary}
+```
+
+## Actual Import Edges (Mermaid)
+```mermaid
+{dep_mermaid}
+```
+
 Project structure:
 {tree_str}
 
 Code context:
-{agent.code_context[:1500]}"""
+{agent.code_context[:1200]}"""
 
     print("\n📐 Generating architecture diagram...")
     print("Agent › ", end="", flush=True)
@@ -411,14 +463,15 @@ Code context:
         full += token
     print()
     response = full
+
     from agent.executor import _extract_file_blocks, _auto_write_files
     blocks = _extract_file_blocks(response)
     if blocks:
         os.makedirs(os.path.join(agent.workspace, "docs"), exist_ok=True)
         written = _auto_write_files(blocks, agent.workspace)
         print(f"   ✅ Saved: {written}")
-    print(response)
     return response
+
 
 
 # ── /scaffold ─────────────────────────────────────────────────────────────────
