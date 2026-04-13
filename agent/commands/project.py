@@ -26,6 +26,11 @@ SCAFFOLD_TYPES = {
 
 def cmd_docs(agent, args: str) -> str:
     target = args.strip()
+
+    # ── /docs api — auto-generate API reference ───────────────────────────────
+    if target.lower() == "api":
+        return _cmd_docs_api(agent)
+
     if target:
         path = os.path.join(agent.workspace, target) if not os.path.isabs(target) else target
         r = read_file(path)
@@ -92,6 +97,71 @@ Codebase:
             written = _auto_write_files(blocks, agent.workspace)
             print(f"   ✅ Created: {written}")
         return response
+
+
+# ── /docs api (Feature 12) ────────────────────────────────────────────────────
+
+def _cmd_docs_api(agent) -> str:
+    """
+    Scan the workspace for Flask/FastAPI routes and generate:
+      docs/api.md       — Markdown API reference with method badges
+      docs/openapi.yaml — OpenAPI 3.0 YAML spec
+    """
+    from tools.api_doc_scanner import generate_api_docs
+
+    print("\n🔍 Scanning for API routes (Flask / FastAPI / Django)...")
+    result = generate_api_docs(agent.workspace, project_name=Path(agent.workspace).name.title())
+
+    if result["endpoints_found"] == 0:
+        return (
+            "⚠️  No API routes detected.\n"
+            "   Supported frameworks: Flask (@app.route), FastAPI (@app.get), Django (urlpatterns)\n"
+            "   Make sure route decorators are used in your Python files."
+        )
+
+    print(result["summary"])
+
+    # ── Write docs/api.md ─────────────────────────────────────────────────────
+    docs_dir = Path(agent.workspace) / "docs"
+    docs_dir.mkdir(exist_ok=True)
+
+    md_path   = docs_dir / "api.md"
+    yaml_path = docs_dir / "openapi.yaml"
+
+    md_path.write_text(result["markdown"],    encoding="utf-8")
+    yaml_path.write_text(result["openapi_yaml"], encoding="utf-8")
+
+    print(f"   ✅ Written: docs/api.md")
+    print(f"   ✅ Written: docs/openapi.yaml")
+
+    # ── AI enhancement pass — add descriptions from codebase context ──────────
+    print("\n🤖 Asking AI to enrich endpoint descriptions...")
+    sample = result["markdown"][:1500]
+    prompt = f"""You are a technical writer. Below is an auto-generated API reference.
+Enhance the descriptions: explain what each endpoint does, what params mean, and what the response looks like.
+Keep the exact Markdown format and table structure. Only improve the text — don't add new endpoints.
+
+{sample}"""
+    print("Agent › ", end="", flush=True)
+    enriched = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        enriched += token
+    print()
+
+    # Replace the Markdown file with the enriched version
+    if len(enriched) > 200:
+        md_path.write_text(enriched, encoding="utf-8")
+        print("   ✅ AI-enriched docs/api.md")
+
+    return (
+        f"\n✅ API docs generated!\n"
+        f"{result['summary']}\n"
+        f"\n   📄 docs/api.md       — Markdown reference\n"
+        f"   📋 docs/openapi.yaml — OpenAPI 3.0 spec (import into Swagger UI, Postman, Insomnia)\n"
+        f"\n   💡 Tip: serve Swagger UI with:\n"
+        f"      npx swagger-ui-cli serve docs/openapi.yaml"
+    )
 
 
 # ── /git ─────────────────────────────────────────────────────────────────────

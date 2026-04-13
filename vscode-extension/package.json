@@ -1,0 +1,156 @@
+{
+  "name": "ai-agent-vscode",
+  "displayName": "AI Agent — Dual-LLM Coding Assistant",
+  "description": "Autonomous coding assistant powered by Ollama and Groq. Review, fix, refactor, and explain your code without leaving VS Code.",
+  "version": "1.1.0",
+  "publisher": "saranraj",
+  "icon": "images/icon.png",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["AI", "Programming Languages", "Other"],
+  "keywords": ["ai", "ollama", "groq", "code review", "refactor", "llm", "copilot"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saranraj1/Dual-LLM-AI-Agent"
+  },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./src/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "AI Agent",
+      "properties": {
+        "aiAgent.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL of the AI Agent REST API server (start with: ai --serve)"
+        },
+        "aiAgent.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-connect to agent server on VS Code startup"
+        },
+        "aiAgent.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show AI Agent status in the status bar"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "aiAgent.reviewFile",
+        "title": "AI Agent: Review This File",
+        "category": "AI Agent",
+        "icon": "$(search)"
+      },
+      {
+        "command": "aiAgent.fixFile",
+        "title": "AI Agent: Fix Errors in This File",
+        "category": "AI Agent",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "aiAgent.explainFile",
+        "title": "AI Agent: Explain This File",
+        "category": "AI Agent",
+        "icon": "$(question)"
+      },
+      {
+        "command": "aiAgent.refactorFile",
+        "title": "AI Agent: Refactor This File",
+        "category": "AI Agent",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aiAgent.securityScan",
+        "title": "AI Agent: Security Scan",
+        "category": "AI Agent",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "aiAgent.generateTests",
+        "title": "AI Agent: Generate Tests for This File",
+        "category": "AI Agent",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "aiAgent.explainSelection",
+        "title": "AI Agent: Explain Selected Code",
+        "category": "AI Agent",
+        "icon": "$(info)"
+      },
+      {
+        "command": "aiAgent.fixSelection",
+        "title": "AI Agent: Fix Selected Code",
+        "category": "AI Agent",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "aiAgent.openChat",
+        "title": "AI Agent: Open Chat UI",
+        "category": "AI Agent",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "aiAgent.runTask",
+        "title": "AI Agent: Run Task…",
+        "category": "AI Agent",
+        "icon": "$(play)"
+      },
+      {
+        "command": "aiAgent.generateApiDocs",
+        "title": "AI Agent: Generate API Docs",
+        "category": "AI Agent",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "aiAgent.gitCommit",
+        "title": "AI Agent: Smart Git Commit",
+        "category": "AI Agent",
+        "icon": "$(git-commit)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "aiAgent.submenu",
+          "group": "1_modification@99"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "aiAgent.reviewFile",
+          "group": "navigation@1",
+          "when": "resourceLangId == python || resourceLangId == javascript || resourceLangId == typescript"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "aiAgent.submenu",
+          "group": "1_modification@99",
+          "when": "resourceLangId == python || resourceLangId == javascript"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "aiAgent.submenu",
+        "label": "🤖 AI Agent"
+      }
+    ],
+    "keybindings": [
+      { "command": "aiAgent.reviewFile",      "key": "ctrl+shift+r", "mac": "cmd+shift+r", "when": "editorFocus" },
+      { "command": "aiAgent.openChat",         "key": "ctrl+shift+a", "mac": "cmd+shift+a" },
+      { "command": "aiAgent.explainSelection", "key": "ctrl+shift+e", "mac": "cmd+shift+e", "when": "editorHasSelection" },
+      { "command": "aiAgent.runTask",          "key": "ctrl+shift+t", "mac": "cmd+shift+t" }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'No build step needed (pure JS)'",
+    "package": "npx vsce package",
+    "install-ext": "code --install-extension ai-agent-vscode-1.1.0.vsix"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
