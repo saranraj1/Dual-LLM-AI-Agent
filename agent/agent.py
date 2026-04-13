@@ -19,19 +19,26 @@ import time
 from agent.planner    import plan, format_plan
 from agent.executor   import execute_step
 from agent.reflection import reflect, format_reflection, ReflectionResult
-from agent.commands   import (
+from agent.commands import (
+    # Legacy core
     cmd_diff, cmd_history, cmd_undo, cmd_explain,
-    cmd_test, cmd_fix, cmd_todo, _backup_file
-)
-from agent.commands_extended import (
-    cmd_review, cmd_optimize, cmd_docs, cmd_git,
-    cmd_refactor, cmd_security, cmd_summarize,
-    cmd_changelog, cmd_stats, cmd_deps, cmd_diagram,
-    cmd_run_file, cmd_scaffold, cmd_ask_url, cmd_mode,
-    cmd_format, cmd_lint, cmd_translate, cmd_search,
-    cmd_export, cmd_config, cmd_benchmark,
+    cmd_test, cmd_fix, cmd_todo,
+    # Code quality
+    cmd_review, cmd_optimize, cmd_refactor, cmd_security, cmd_format, cmd_lint,
+    # Project
+    cmd_docs, cmd_git, cmd_summarize, cmd_changelog,
+    cmd_stats, cmd_deps, cmd_diagram, cmd_scaffold,
+    # Files
+    cmd_run_file, cmd_translate,
+    # Web
+    cmd_ask_url, cmd_search,
+    # Settings
+    cmd_mode, cmd_export, cmd_config, cmd_benchmark,
+    # Local
     cmd_kb, cmd_clip, cmd_digest, cmd_time,
 )
+from agent.commands_base import _backup_file
+
 from agent.watcher      import cmd_watch
 from agent.daily_digest import show_digest
 from memory.short_memory import ShortMemory

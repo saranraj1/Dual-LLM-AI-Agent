@@ -1,19 +1,35 @@
 """
 config/settings.py — Central configuration for the AI Agent system.
+
+Secrets (GROQ_API_KEY) are loaded from a .env file via python-dotenv.
 Edit MODEL_NAME and GPU_LAYERS based on your hardware.
+
+Setup:
+    cp .env.example .env
+    # then edit .env with your real Groq API key
 """
 
 from pathlib import Path
 import os
 
+# ── Load .env file (Step 8) ───────────────────────────────────────────────────
+try:
+    from dotenv import load_dotenv
+    # Walk up from this file's directory to find .env in the project root
+    _root = Path(__file__).parent.parent
+    load_dotenv(_root / ".env", override=False)
+except ImportError:
+    pass  # python-dotenv not installed — fall back to os.environ or hardcoded values
+
 # ── Local model (Ollama) ──────────────────────────────────────────────────────
 MODEL_NAME      = "phi3:mini"          # Recommended: fits GTX 1650 4GB, fast & capable
-OLLAMA_HOST     = "http://localhost:11434"
+OLLAMA_HOST     = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 CONTEXT_WINDOW  = 2048                # phi3:mini handles 128k but we cap for speed
 MAX_TOKENS      = 512                 # max tokens per response
 
 # ── Groq API (cloud, free tier — 300+ tok/s) ─────────────────────────────────
-GROQ_API_KEY    = os.environ.get("GROQ_API_KEY", "YOUR_GROQ_API_KEY_HERE")
+# Key is read from .env file — NEVER hardcode it here
+GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL      = "llama-3.3-70b-versatile"   # best free model on Groq
 GROQ_HOST       = "https://api.groq.com/openai/v1"
 AUTO_FALLBACK   = True                # auto-switch to Groq if Ollama fails/OOM

@@ -1,6 +1,11 @@
-requests==2.31.0
+requests>=2.31.0
 flake8>=6.0.0
 black>=23.0.0
 pypdf>=3.0.0
 python-docx>=0.8.11
 rich>=13.0.0
+python-dotenv>=1.0.0
+pytest>=7.4.0
+pytest-cov>=4.1.0
+# Optional — uncomment for semantic KB search:
+# sentence-transformers>=2.2.0

@@ -1,438 +1,188 @@
-# 🤖 Autonomous AI Agent
+# 🤖 Dual-LLM AI Agent
 
-A fully autonomous coding assistant that runs **100% on your local machine** via Ollama, with optional Groq cloud fallback. It reads your entire codebase, plans multi-step tasks, writes files, installs packages, runs code, and self-corrects — all from a simple terminal chat.
+[![CI](https://github.com/saranraj1/Dual-LLM-AI-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/saranraj1/Dual-LLM-AI-Agent/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **What makes this different from cloud AI tools:** It has access to your filesystem, runs git hooks, monitors your clipboard, indexes your private docs, sends desktop notifications, and works completely offline.
+An **autonomous coding assistant** that lives entirely on your machine. It reads your project files, understands your codebase, plans multi-step tasks, writes code, runs tests, commits to git — all from a terminal chat interface.
+
+**Dual LLM backends**: runs Ollama (local, private) first; instantly falls back to Groq cloud (300+ tok/s) if Ollama is busy or unavailable.
 
 ---
 
 ## ✨ Features
 
-### Core
-- **Dual LLM backend** — Local `phi3:mini` (Ollama) + auto Groq cloud fallback
-- **Autonomous loop** — Plan → Execute → Reflect → Auto-write files → Auto-install packages
-- **Full codebase awareness** — Scans and indexes your entire project on startup
-- **Multi-turn memory** — Remembers conversation across turns (session + long-term persistent)
-- **Response caching** — Identical prompts reuse cached responses (120s TTL)
-- **Spinner + ANSI colors** — Rich terminal UI with live progress indicators
-
-### 🖥️ Local-Machine Exclusive Features
-| Feature | Description |
-|---------|-------------|
-| **📋 Clipboard Monitor** | Watches clipboard — copy any code and get instant AI review |
-| **🔔 Desktop Notifications** | Windows toast notification when long tasks finish |
-| **🔗 Git Pre-commit Hook** | Auto-checks staged files for secrets + lint errors before every commit |
-| **📅 Daily Digest** | Shows yesterday's git activity + file changes on startup every day |
-| **📚 Local Knowledge Base** | Index your own PDFs, Word docs, notes — agent answers from them |
+| Category | Commands |
+|---|---|
+| **Agent** | `/run`, `/scan`, `/watch` — plan + execute + auto-write + reflect |
+| **Code Quality** | `/review`, `/fix`, `/optimize`, `/refactor`, `/security`, `/test`, `/lint`, `/format` |
+| **Files** | `/explain`, `/diff`, `/undo`, `/run-file`, `/translate` |
+| **Project** | `/docs`, `/scaffold`, `/diagram`, `/stats`, `/deps`, `/summarize`, `/changelog`, `/git` |
+| **Web** | `/ask <url>`, `/search <query>` |
+| **Knowledge Base** | `/kb add`, `/kb search`, `/kb list` — semantic vector search (optional) |
+| **Settings** | `/mode`, `/config`, `/benchmark`, `/export`, `/time` |
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-```powershell
-# Python 3.11+ required
-# Install Ollama → https://ollama.com
+### 1. Clone & Install
 
-pip install black flake8    # optional: for /format and /lint
-pip install pypdf           # optional: for indexing PDF files
-pip install python-docx     # optional: for indexing Word files
+```bash
+git clone https://github.com/saranraj1/Dual-LLM-AI-Agent.git
+cd Dual-LLM-AI-Agent
+
+# Create virtual environment (recommended)
+python -m venv .venv
+.venv\Scripts\activate   # Windows
+source .venv/bin/activate  # Mac/Linux
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Or install as a package (enables `ai` command anywhere)
+pip install -e .
 ```
 
-### Step 1 — Pull the local model
-```powershell
-ollama pull phi3:mini
+### 2. Configure Secrets
+
+```bash
+cp .env.example .env
 ```
 
-### Step 2 — Build the custom model
-```powershell
-cd C:\ai-agent
-ollama create qwen-lite -f Modelfile
+Edit `.env` and add your [Groq API key](https://console.groq.com/keys) (free):
+
+```env
+GROQ_API_KEY=gsk_your_key_here
+OLLAMA_HOST=http://localhost:11434
 ```
 
-### Step 3 — Start Ollama (keep this running in a separate terminal)
-```powershell
+### 3. Start Ollama (Optional but Recommended)
+
+```bash
+# Install from https://ollama.com
+ollama pull phi3:mini   # 3.8B — fits GTX 1650 4GB VRAM
 ollama serve
 ```
 
-### Step 4 — Run the agent
-```powershell
-python -X utf8 C:\ai-agent\main.py
-```
+### 4. Launch the Agent
 
----
+```bash
+# From the project folder:
+python main.py
 
-## 📁 Run from Any Folder
-
-To use the agent on **any project** without navigating to `C:\ai-agent`:
-
-### Option A — Use `--project` flag
-```powershell
-python -X utf8 C:\ai-agent\main.py --project C:\my-other-project
-```
-
-### Option B — PowerShell alias (recommended)
-Open your PowerShell profile:
-```powershell
-notepad $PROFILE
-```
-Add this line:
-```powershell
-function ai { python -X utf8 C:\ai-agent\main.py --project $PWD @args }
-```
-Reload:
-```powershell
-. $PROFILE
-```
-Now from **any folder**:
-```powershell
-cd C:\my-project
+# After pip install -e ., from anywhere:
 ai
-```
 
-### Option C — Windows batch file
-Create `C:\Windows\ai.bat`:
-```batch
-@echo off
-python -X utf8 C:\ai-agent\main.py --project %CD% %*
-```
-Then anywhere:
-```powershell
-cd C:\my-project
-ai
+# Point at a specific project:
+python main.py --project /path/to/your/project
 ```
 
 ---
 
-## 💬 All Commands
-
-### 🤖 Agent
-| Command | Description |
-|---------|-------------|
-| `/run <task>` | Autonomous: plan → execute → write files → reflect |
-| `/scan [path]` | Re-scan workspace or switch to different project |
-| `/watch` | Watch for file changes and auto-review on save |
+## 💬 Usage Examples
 
 ```
-/run create a FastAPI REST API with JWT authentication
-/run add unit tests for all functions in utils.py
-/run fix all the bugs in my project
-```
-
----
-
-### 🔍 Code Quality
-| Command | Description |
-|---------|-------------|
-| `/review [file]` | Code review scored 1-10 on readability, perf, security |
-| `/fix [file]` | Scan for errors and auto-fix them |
-| `/optimize <file>` | Performance-focused rewrite |
-| `/refactor <file>` | SOLID principles rewrite |
-| `/security [file]` | Security audit with CRITICAL/HIGH/MEDIUM/LOW ratings |
-| `/test [file]` | Generate comprehensive tests and run them |
-| `/lint [file\|fix]` | Run flake8; use `fix` to auto-fix issues |
-| `/format [file]` | Auto-format with black (autopep8 fallback) |
-| `/todo [fix]` | List/fix all TODO/FIXME comments |
-
-```
-/review main.py
-/security                 ← audit entire project
-/lint fix                 ← AI auto-fixes all lint issues
-/format                   ← format all .py files
+You › /run add logging to all functions in utils.py
+You › /review main.py
+You › /refactor agent/executor.py
+You › /docs                    ← generate README.md
+You › /test agent/planner.py   ← generate + run tests
+You › /git                     ← smart commit with AI message
+You › /scaffold flask-api      ← create full project boilerplate
+You › /kb add docs/            ← index your PDFs and notes
+You › /kb search "how to deploy"
+You › what does the executor do?  ← plain chat, no slash needed
 ```
 
 ---
 
-### 📁 Files & Translation
-| Command | Description |
-|---------|-------------|
-| `/explain <file>` | Deep explanation of a file |
-| `/diff [file]` | Show changes vs git/backup |
-| `/undo <file>` | Restore file to pre-agent backup |
-| `/run-file <file>` | Run file; auto-fix if it crashes |
-| `/translate <file> <lang>` | Rewrite code in another language |
+## 🏗️ Architecture
 
 ```
-/undo main.py
-/translate main.py typescript
-/translate app.js python
-/run-file scripts/process_data.py
-```
-
----
-
-### 📊 Project
-| Command | Description |
-|---------|-------------|
-| `/docs [file]` | Generate README or add docstrings |
-| `/scaffold <type>` | Create full project boilerplate |
-| `/diagram` | ASCII + Mermaid architecture diagram |
-| `/stats` | Lines of code, file counts, largest files |
-| `/deps` | Dependency analysis + install status |
-| `/summarize [file]` | Plain-English project summary |
-| `/changelog` | Generate CHANGELOG.md from git history |
-| `/git [message]` | Smart git commit with AI message |
-
-**Scaffold types:**
-```
-/scaffold flask-api    /scaffold fastapi      /scaffold react-app
-/scaffold cli-tool     /scaffold discord-bot  /scaffold ml-project
-/scaffold scraper
+main.py                   ← CLI entrypoint (also: 'ai' command via pyproject.toml)
+├── agent/
+│   ├── agent.py          ← main Agent class + chat loop
+│   ├── planner.py        ← LLM-powered task → step list
+│   ├── executor.py       ← step execution + file writing (path-clamped)
+│   ├── reflection.py     ← post-task success/failure analysis
+│   └── commands/         ← modular slash commands (Step 1)
+│       ├── code_quality.py   /review /optimize /refactor /security /format /lint
+│       ├── project.py        /docs /git /summarize /changelog /stats /deps /diagram
+│       ├── files.py          /explain /diff /undo /run-file /translate
+│       ├── web.py            /ask /search
+│       ├── settings.py       /mode /export /config /benchmark
+│       └── local.py          /kb /clip /digest /time
+├── core/
+│   ├── llm.py            ← dual-backend (Ollama + Groq), cache, streaming, fallback
+│   ├── exceptions.py     ← typed error hierarchy (AgentError → LLMError → ...)
+│   └── prompt_builder.py ← system prompt + context injection
+├── memory/
+│   ├── short_memory.py   ← in-session conversation turns
+│   └── long_memory.py    ← SQLite persistent memory (auto-migrates from JSON)
+├── tools/
+│   ├── knowledge_base.py ← semantic vector search (sentence-transformers + SQLite)
+│   ├── file_tools.py     ← read/write/scan/search
+│   ├── terminal_tools.py ← cross-platform shell execution
+│   └── notifications.py  ← cross-platform desktop notifications
+├── config/settings.py    ← loads .env secrets via python-dotenv
+└── tests/                ← pytest suite (33 tests, all passing)
 ```
 
 ---
 
-### 🧠 Memory, Mode & Settings
-| Command | Description |
-|---------|-------------|
-| `/history [n]` | Show last n conversation turns |
-| `/memory` | Memory stats + cache hits + API call counts |
-| `/clear` | Wipe session and long-term memory |
-| `/mode <name>` | Switch agent personality |
-| `/model [backend]` | Switch backend: auto / local / groq |
-| `/config [key val]` | View/change settings live |
-| `/benchmark` | Compare local Ollama vs Groq speed |
+## 🧪 Testing
 
-**Modes:**
-```
-/mode debug      ← find and fix errors
-/mode architect  ← system design + patterns
-/mode tutor      ← beginner-friendly explanations
-/mode fast       ← code-only concise answers
-/mode review     ← auto-review everything shown
-/mode normal     ← default
+```bash
+pytest tests/ -v
+pytest tests/ --cov=core --cov=agent --cov=tools --cov-report=term-missing
 ```
 
-**Config examples:**
-```
-/config                  ← show all settings
-/config gpu 15           ← change GPU layers
-/config ctx 1024         ← change context window
-/config tokens 512       ← change max response length
-/config backend groq     ← force Groq cloud
-```
-
-**Backend switching:**
-```
-/model               ← show current backend
-/model auto          ← Ollama → Groq fallback (default)
-/model local         ← local only (phi3:mini)
-/model groq          ← cloud only (llama-3.3-70b) ⚡
-```
-
----
-
-### 🌐 Web & Export
-| Command | Description |
-|---------|-------------|
-| `/ask <url> [q]` | Fetch a URL and ask about its content |
-| `/search <query>` | DuckDuckGo search + AI answer |
-| `/export [file]` | Save full chat history to markdown |
-
-```
-/ask https://docs.python.org/3/library/asyncio.html how to use gather?
-/search how to implement rate limiting in FastAPI
-/export session_log.md
-```
-
----
-
-### 🖥️ Local Machine Features
-
-#### 📋 Clipboard Monitor
-Auto-reviews any code you copy — from your browser, Stack Overflow, GitHub, etc.
-
-| Command | Description |
-|---------|-------------|
-| `/clip on` | Start watching clipboard for code |
-| `/clip off` | Stop watching |
-| `/clip` | Show current status |
-
-```
-/clip on
-# Now copy any code from anywhere — agent reviews it instantly
-/clip off
-```
-
-#### 📚 Knowledge Base
-Index your own private documents so the agent can answer from them.
-
-| Command | Description |
-|---------|-------------|
-| `/kb add <file\|folder>` | Index documents into knowledge base |
-| `/kb search <query>` | Search indexed knowledge |
-| `/kb list` | List all indexed documents |
-| `/kb clear` | Remove all indexed documents |
-| `/kb` | Show KB status |
-
-```
-/kb add C:\my-notes\architecture.pdf
-/kb add C:\docs\api-specs\
-/kb list
-/kb search authentication flow
-```
-
-**Supported formats:** `.txt` `.md` `.pdf` `.docx` `.py` `.js` `.json` `.csv` `.yaml`
-
-#### 📅 Daily Digest
-| Command | Description |
-|---------|-------------|
-| `/digest` | Show today's git activity, modified files, memory summary |
-
-Shown automatically once per day on startup. Shows:
-- Yesterday's git commits
-- Files modified in last 24h
-- Recent work from long-term memory
-- Knowledge base stats + daily tip
-
-#### ⏱️ Session Timer
-| Command | Description |
-|---------|-------------|
-| `/time` | Session duration, tasks run, LLM calls, cache hits |
-
-```
-⏱️  Session Statistics
-────────────────────────────────────────
-  Duration    : 01h 23m 45s
-  Tasks run   : 7
-  Chat turns  : 24
-  Backend     : auto
-  LLM Calls:
-    Ollama calls : 18
-    Groq calls   : 3
-    Cache hits   : 6 (avoided 6 API calls)
-```
-
-#### 🔗 Git Pre-commit Hook
-Automatically check staged files for secrets + lint errors before every `git commit`.
-
-**Install once per project:**
-```powershell
-# Standard install (warns only, allows commit)
-python C:\ai-agent\scripts\install_git_hook.py --project C:\my-project
-
-# Strict install (blocks commit if critical issues found)
-python C:\ai-agent\scripts\install_git_hook.py --project C:\my-project --strict
-
-# Remove hook
-python C:\ai-agent\scripts\install_git_hook.py --project C:\my-project --remove
-```
-
-**What it checks on every `git commit`:**
-- Syntax errors in staged `.py` files (E9, F-class errors)
-- Hardcoded secrets: API keys, passwords, tokens, AWS credentials
-- To bypass: `git commit --no-verify`
-
-#### 🔔 Desktop Notifications
-Automatic — no setup needed. When a `/run` task takes more than 10 seconds, a Windows toast notification appears when it finishes, even if the terminal is minimized.
+All 33 tests pass. CI runs automatically on every push via GitHub Actions.
 
 ---
 
 ## ⚙️ Configuration
 
-Edit `config/settings.py` for permanent changes:
-```python
-MODEL_NAME     = "phi3:mini"                  # local model
-GROQ_MODEL     = "llama-3.3-70b-versatile"   # cloud model
-AUTO_FALLBACK  = True                         # auto-switch to Groq if Ollama fails
-GPU_LAYERS     = 33                           # 33 = full phi3:mini fits in 4GB VRAM
-CONTEXT_WINDOW = 2048                         # tokens of context per request
-MAX_TOKENS     = 512                          # max tokens in response
-```
+| Variable | Default | Description |
+|---|---|---|
+| `GROQ_API_KEY` | *(from .env)* | Groq cloud API key |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
+| `MODEL_NAME` | `phi3:mini` | Local Ollama model |
+| `GPU_LAYERS` | `33` | GPU layers (set to 0 for CPU-only) |
+| `MAX_TOKENS` | `512` | Max tokens per LLM response |
+| `ALLOW_SHELL` | `True` | Set `False` for read-only/safe mode |
 
-Or change live without restarting:
-```
-/config gpu 20
-/config ctx 1536
-/config backend groq
-```
+Live config changes: `/config gpu 0` · `/config ctx 4096` · `/model groq`
 
 ---
 
-## 🔄 LLM Backends
+## 🔒 Security
 
-| Backend | Model | Speed | Privacy | When to use |
-|---------|-------|-------|---------|-------------|
-| Local (Ollama) | phi3:mini 3.8B | ~25 tok/s on GTX 1650 | 100% local | Private code, offline |
-| Groq (cloud) | llama-3.3-70b | ~300 tok/s | Cloud | Complex tasks, speed |
-
-**Auto-fallback:** Ollama crashes → automatically switches to Groq + shows warning.
+- **Secrets in `.env`** — never committed to git (`.env` is in `.gitignore`)
+- **Path clamping** — agent can only write files inside your project folder, even if the LLM hallucinates absolute paths like `C:\system\`
+- **Shell blocklist** — dangerous commands (`rm -rf /`, `dd if=`, `shutdown`) are rejected before execution
+- **Backup before edit** — every file the agent modifies is backed up to `.agent_backups/`
 
 ---
 
-## 🏗️ Project Structure
+## 🗺️ Roadmap
 
-```
-ai-agent/
-├── main.py                       ← entry point + REPL chat loop
-├── Modelfile                     ← Ollama model config (phi3:mini)
-│
-├── config/
-│   └── settings.py               ← all settings in one place
-│
-├── core/
-│   ├── llm.py                    ← dual-backend LLM, cache, auto-restart
-│   ├── prompt_builder.py         ← smart prompt with token budget
-│   └── ui.py                     ← ANSI colors, spinner, formatted print
-│
-├── agent/
-│   ├── agent.py                  ← main loop: Plan→Execute→Reflect→Memory
-│   ├── planner.py                ← LLM breaks task into steps
-│   ├── executor.py               ← routes each step to the right tool
-│   ├── reflection.py             ← self-check: did this step succeed?
-│   ├── daily_digest.py           ← startup daily digest (once/day)
-│   ├── commands.py               ← /diff /history /undo /explain /test /fix /todo
-│   ├── commands_extended.py      ← 30+ extended commands
-│   └── watcher.py                ← file watcher for /watch
-│
-├── memory/
-│   ├── short_memory.py           ← session memory (cleared on exit)
-│   └── long_memory.py            ← persistent JSON (~/.ai_agent/)
-│
-├── tools/
-│   ├── file_tools.py             ← file read/write/scan
-│   ├── code_tools.py             ← run Python, install packages
-│   ├── terminal_tools.py         ← run shell commands safely
-│   ├── clipboard_monitor.py      ← background clipboard code detector
-│   ├── knowledge_base.py         ← local doc indexer + search
-│   └── notifications.py          ← Windows toast notifications
-│
-└── scripts/
-    └── install_git_hook.py       ← installs git pre-commit hook
-```
-
----
-
-## 🛠️ Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| `Ollama not running` | Run `ollama serve` in a separate terminal |
-| `Model not found` | Run `ollama pull phi3:mini` then `ollama create qwen-lite -f Modelfile` |
-| `HTTP 500 / OOM` | Out of memory — use `/model groq` or `/config gpu 0` |
-| `Slow responses` | Use `/model groq` or `/config ctx 512` |
-| `Emoji broken` | Run with `python -X utf8 main.py` |
-| `Groq 403 error` | API key invalid — update `GROQ_API_KEY` in `config/settings.py` |
-| `Notifications not showing` | Windows 10/11 only — check Focus Assist settings |
-| `PDF indexing fails` | Run `pip install pypdf` |
-| `DOCX indexing fails` | Run `pip install python-docx` |
-
----
-
-## 📝 Tips & Tricks
-
-- **Start with `/digest`** to see what changed since yesterday
-- **`/clip on`** while reading Stack Overflow — instant reviews as you copy code
-- **`/kb add C:\my-notes`** to give the agent context from your private docs
-- **`/model groq`** for complex architecture questions (70B model is much smarter)
-- **`/model local`** for quick edits, private code, or offline work
-- **`/undo <file>`** always works — every file is backed up before agent edits it
-- **`/benchmark`** to see actual speed difference between local and cloud
-- **`/time`** to see how many API calls were saved by caching
-- Run `/run` from **any folder** — the agent operates on `--project` path
+| Step | Status | Description |
+|---|---|---|
+| 1 | ✅ | Modularize `commands_extended.py` into focused modules |
+| 2 | ✅ | Pytest suite — 33 tests, executor/cache/fallback/planner/file_tools |
+| 3 | ✅ | SQLite long-term memory (replaces JSON, auto-migrates) |
+| 4 | ✅ | Cross-platform support (Windows / macOS / Linux) |
+| 5 | ✅ | Semantic KB search with sentence-transformers |
+| 6 | ✅ | Stream all commands (no more blocking waits) |
+| 7 | ✅ | Typed exception hierarchy with actionable messages |
+| 8 | ✅ | `.env` secret management via python-dotenv |
+| 9 | ✅ | GitHub Actions CI (tests + lint, Python 3.11 & 3.12) |
+| 10 | ✅ | `pyproject.toml` packaging — install with `pip install -e .` |
 
 ---
 
 ## 📄 License
 
-MIT License — free to use, modify, and extend.
+MIT — see [LICENSE](LICENSE).
