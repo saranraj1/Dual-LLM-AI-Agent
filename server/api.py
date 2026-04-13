@@ -151,34 +151,42 @@ def _sse_event(data: str, event: str = "token") -> str:
 async def _stream_response(gen) -> AsyncGenerator[str, None]:
     """
     Convert a synchronous blocking generator into async SSE frames.
-    Each token is fetched in a thread-pool worker so the event loop
-    stays free (health/stats endpoints remain responsive during LLM calls).
+
+    Uses a threading.Queue (unbounded, never drops tokens) fed by a daemon
+    thread, consumed via run_in_executor so the event loop stays responsive
+    for health/stats during long LLM calls.
     """
-    loop  = asyncio.get_event_loop()
-    queue: asyncio.Queue = asyncio.Queue(maxsize=64)
-    DONE  = object()   # sentinel
+    import queue as _tq, threading as _th
+
+    q    = _tq.Queue()        # unbounded — never raises QueueFull
+    DONE = object()            # sentinel
+    ERR  = object()            # error sentinel
 
     def _feed():
+        """Run synchronous generator in a background thread, pushing to queue."""
         try:
             for token in gen:
-                loop.call_soon_threadsafe(queue.put_nowait, token)
+                q.put(token)
         except Exception as exc:
-            loop.call_soon_threadsafe(queue.put_nowait, exc)
+            q.put((ERR, exc))
         finally:
-            loop.call_soon_threadsafe(queue.put_nowait, DONE)
+            q.put(DONE)
 
-    loop.run_in_executor(None, _feed)
+    _th.Thread(target=_feed, daemon=True).start()
+    loop = asyncio.get_event_loop()
 
     try:
         while True:
-            item = await queue.get()
+            # Block-wait in executor → event loop stays free for other requests
+            item = await loop.run_in_executor(None, q.get)
             if item is DONE:
                 break
-            if isinstance(item, Exception):
-                log.error("stream error: %s", item)
-                yield _sse_event(str(item), "error")
+            if isinstance(item, tuple) and item[0] is ERR:
+                log.error("stream error: %s", item[1])
+                yield _sse_event(str(item[1]), "error")
                 break
-            yield _sse_event(item, "token")
+            if item:                          # skip empty tokens
+                yield _sse_event(item, "token")
     finally:
         yield _sse_event("", "done")
 

@@ -1011,8 +1011,9 @@ function appendAgentMessage() {
 }
 
 function appendToken(id, token) {
-  if (!token) return;
-  _agentBuf[id] = (_agentBuf[id] || '') + token;
+  if (token === null || token === undefined) return;
+  const str = typeof token === 'string' ? token : JSON.stringify(token, null, 2);
+  _agentBuf[id] = (_agentBuf[id] || '') + str;
   const bubble = document.getElementById(`${id}-bubble`);
   if (bubble) {
     bubble.innerHTML = renderMarkdown(_agentBuf[id]) + '<span class="cursor">▋</span>';
@@ -1076,39 +1077,64 @@ function clearChat() {
   _agentBuf = {};
 }
 
-// ── Markdown renderer (lightweight) ──────────────────────────────────────────
+// ── Markdown renderer ─────────────────────────────────────────────────────────
 function renderMarkdown(text) {
   if (!text) return '';
-  let html = escapeHTML(text);
-  // Code blocks
-  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
-    `<pre><code class="language-${lang || 'plaintext'}">${code.trim()}</code></pre>`);
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // Bold
+
+  // ── Step 1: extract fenced code blocks FIRST (protect from later transforms)
+  const _blocks = [];
+  let html = text.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = _blocks.length;
+    _blocks.push(
+      `<pre><code class="language-${lang || 'plaintext'}">${escapeHTML(code.trim())}</code></pre>`
+    );
+    return `\x00BLOCK${idx}\x00`;   // placeholder — immune to later transforms
+  });
+
+  // ── Step 2: escape HTML in non-code regions
+  html = escapeHTML(html);
+
+  // ── Step 3: inline code  (backtick content already safe, just wrap in <code>)
+  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  // ── Step 4: emphasis
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Italic
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // Headings
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-  // Bullet lists
-  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>(\n|$))+/g, m => `<ul>${m}</ul>`);
-  // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-  // Blockquote
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-  // Horizontal rule
-  html = html.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">');
-  // Paragraphs (double newline)
-  html = html.replace(/\n\n+/g, '</p><p>');
-  html = '<p>' + html + '</p>';
-  // Single newlines inside paragraphs
-  html = html.replace(/\n/g, '<br>');
-  // Clean up empty paragraphs around block elements
-  html = html.replace(/<p>\s*(<(?:h[1-6]|ul|ol|pre|blockquote|hr)[^>]*>)/g, '$1');
-  html = html.replace(/(<\/(?:h[1-6]|ul|ol|pre|blockquote|hr)>)\s*<\/p>/g, '$1');
+  html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+
+  // ── Step 5: headings
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^### (.+)$/gm,  '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm,   '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm,    '<h1>$1</h1>');
+
+  // ── Step 6: lists
+  html = html.replace(/^[ \t]*[-*] (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>[\s\S]*?<\/li>)(\n<li>[\s\S]*?<\/li>)*/g,
+    m => `<ul>${m}</ul>`);
+  html = html.replace(/^[ \t]*\d+[.)]\ (.+)$/gm, '<li class="ol-item">$1</li>');
+  html = html.replace(/(<li class="ol-item">[\s\S]*?<\/li>)(\n<li class="ol-item">[\s\S]*?<\/li>)*/g,
+    m => `<ol>${m.replace(/ class="ol-item"/g, '')}</ol>`);
+
+  // ── Step 7: blockquote / hr
+  html = html.replace(/^&gt;[ \t]?(.+)$/gm, '<blockquote>$1</blockquote>');
+  html = html.replace(/^---+$/gm,
+    '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">');
+
+  // ── Step 8: paragraphs (must not touch placeholders)
+  // Split on blank lines, but skip lines that are block-level
+  const paras = html.split(/\n{2,}/);
+  html = paras.map(p => {
+    p = p.trim();
+    if (!p) return '';
+    // already a block element or a placeholder — don't wrap
+    if (/^\x00BLOCK/.test(p) ||
+        /^<(h[1-6]|ul|ol|pre|blockquote|hr|li)/.test(p)) return p;
+    return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
+
+  // ── Step 9: restore code blocks
+  html = html.replace(/\x00BLOCK(\d+)\x00/g, (_, i) => _blocks[+i]);
+
   return html;
 }
 
