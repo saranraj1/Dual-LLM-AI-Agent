@@ -1,106 +1,173 @@
 """
-memory/long_memory.py — Persistent memory saved to ~/.ai_agent/long_memory.json.
-Survives across sessions. Auto-compresses old turns into a summary.
+memory/long_memory.py — Persistent long-term memory backed by SQLite.
+
+Replaces the old JSON flat-file approach. All data is stored in a proper
+relational table with timestamps, enabling better querying and no corruption
+on concurrent writes.
+
+Migration: if a legacy long_memory.json file is found on first run,
+its content is automatically imported into the database and the JSON file
+is renamed to .migrated so it's not re-imported.
 """
 
+import sqlite3
 import json
+import os
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
-from config.settings import LONG_MEMORY_FILE
+from typing import List, Dict, Optional
 
-MAX_VERBATIM_TURNS = 15
-MAX_SUMMARY_CHARS  = 1500
-MAX_TOTAL_TURNS    = 150
 
+# ── DB path ────────────────────────────────────────────────────────────────────
+
+AGENT_HOME    = Path.home() / ".ai_agent"
+DB_PATH       = AGENT_HOME / "long_memory.db"
+LEGACY_JSON   = AGENT_HOME / "long_memory.json"
+
+AGENT_HOME.mkdir(parents=True, exist_ok=True)
+
+
+# ── Schema ─────────────────────────────────────────────────────────────────────
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS memory (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    role      TEXT    NOT NULL CHECK(role IN ('user', 'assistant')),
+    content   TEXT    NOT NULL,
+    workspace TEXT    DEFAULT '',
+    ts        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_ts ON memory(ts);
+"""
+
+
+# ── Migration from legacy JSON ─────────────────────────────────────────────────
+
+def _migrate_json_if_needed(conn: sqlite3.Connection) -> None:
+    """Import legacy JSON long-term memory into SQLite (runs once)."""
+    if not LEGACY_JSON.exists():
+        return
+    migrated_path = LEGACY_JSON.with_suffix(".json.migrated")
+    if migrated_path.exists():
+        return  # already migrated
+    try:
+        data = json.loads(LEGACY_JSON.read_text(encoding="utf-8"))
+        turns = data if isinstance(data, list) else data.get("turns", [])
+        cursor = conn.cursor()
+        for t in turns:
+            cursor.execute(
+                "INSERT INTO memory (role, content) VALUES (?, ?)",
+                (t.get("role", "user"), t.get("content", "")[:1000])
+            )
+        conn.commit()
+        LEGACY_JSON.rename(migrated_path)
+        print(f"   ✅ Migrated {len(turns)} turns from JSON → SQLite")
+    except Exception as e:
+        print(f"   ⚠️  Could not migrate legacy memory: {e}")
+
+
+# ── Connection factory ─────────────────────────────────────────────────────────
+
+def _get_conn() -> sqlite3.Connection:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")   # safe for concurrent access
+    conn.executescript(_SCHEMA)
+    conn.commit()
+    _migrate_json_if_needed(conn)
+    return conn
+
+
+# ── LongMemory class ───────────────────────────────────────────────────────────
 
 class LongMemory:
-    def __init__(self):
-        self.path = Path(LONG_MEMORY_FILE)
-        self.data = self._load()
+    """
+    Persistent long-term memory stored in SQLite.
 
-    def _load(self) -> Dict:
-        if self.path.exists():
-            try:
-                with open(self.path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return {
-            "created": datetime.now().isoformat(),
-            "summary": "",
-            "turns":   [],
-            "file_notes": {}
-        }
+    Usage:
+        mem = LongMemory()
+        mem.add("user", "What does this function do?")
+        mem.add("assistant", "It sorts a list using ...")
+        context = mem.get_context(max_chars=500)
+        mem.save()   # no-op — SQLite writes immediately but kept for API compat
+    """
 
-    def save(self):
-        if len(self.data["turns"]) > MAX_TOTAL_TURNS:
-            self._compress()
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=2, ensure_ascii=False)
+    def __init__(self, workspace: str = ""):
+        self.workspace = workspace
+        self._conn = _get_conn()
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ── Write ──────────────────────────────────────────────────────────────────
 
-    def add(self, role: str, content: str):
-        self.data["turns"].append({
-            "role":    role,
-            "content": content,
-            "ts":      datetime.now().isoformat()
-        })
+    def add(self, role: str, content: str) -> None:
+        """Insert a new turn into the database."""
+        if not content or not content.strip():
+            return
+        self._conn.execute(
+            "INSERT INTO memory (role, content, workspace) VALUES (?, ?, ?)",
+            (role, content[:1000], self.workspace)
+        )
+        self._conn.commit()
 
-    def get_context(self, max_chars: int = 800) -> str:
-        parts = []
-        if self.data.get("summary"):
-            parts.append(f"[Earlier summary]\n{self.data['summary'][:400]}")
-        recent = self.data["turns"][-MAX_VERBATIM_TURNS:]
-        if recent:
-            lines = []
-            for t in recent:
-                c = t["content"][:200].replace("\n", " ")
-                lines.append(f"{t['role'].capitalize()}: {c}")
-            parts.append("\n".join(lines))
-        full = "\n\n".join(parts)
-        return full[-max_chars:] if len(full) > max_chars else full
+    def save(self) -> None:
+        """No-op — kept for API compatibility. SQLite commits immediately on add()."""
+        pass
 
-    def note_file(self, path: str, note: str):
-        """Remember something about a specific file."""
-        self.data["file_notes"][path] = {
-            "note": note, "ts": datetime.now().isoformat()
-        }
-        self.save()
+    # ── Read ───────────────────────────────────────────────────────────────────
 
-    def get_file_note(self, path: str) -> Optional[str]:
-        entry = self.data.get("file_notes", {}).get(path)
-        return entry["note"] if entry else None
+    def get_context(self, max_chars: int = 500) -> str:
+        """Return the most recent turns as a formatted string, up to max_chars."""
+        rows = self._conn.execute(
+            "SELECT role, content FROM memory ORDER BY id DESC LIMIT 20"
+        ).fetchall()
+        rows.reverse()  # oldest first
+        lines = []
+        total = 0
+        for row in rows:
+            line = f"[{row['role']}]: {row['content']}"
+            if total + len(line) > max_chars:
+                break
+            lines.append(line)
+            total += len(line)
+        return "\n".join(lines)
 
-    def clear(self):
-        self.data["summary"]    = ""
-        self.data["turns"]      = []
-        self.data["file_notes"] = {}
-        self.save()
+    def get_turns(self, n: int = 20) -> List[Dict]:
+        """Return the last n turns as list of dicts."""
+        rows = self._conn.execute(
+            "SELECT role, content, ts FROM memory ORDER BY id DESC LIMIT ?", (n,)
+        ).fetchall()
+        rows.reverse()
+        return [{"role": r["role"], "content": r["content"], "ts": r["ts"]} for r in rows]
 
     def stats(self) -> Dict:
+        """Return memory statistics."""
+        count  = self._conn.execute("SELECT COUNT(*) FROM memory").fetchone()[0]
+        oldest = self._conn.execute("SELECT MIN(ts) FROM memory").fetchone()[0]
+        newest = self._conn.execute("SELECT MAX(ts) FROM memory").fetchone()[0]
         return {
-            "turns":       len(self.data["turns"]),
-            "summary_len": len(self.data.get("summary", "")),
-            "file_notes":  len(self.data.get("file_notes", {})),
-            "file":        str(self.path)
+            "total_turns": count,
+            "oldest":      oldest or "—",
+            "newest":      newest or "—",
+            "db_path":     str(DB_PATH),
         }
 
-    # ── Compression ───────────────────────────────────────────────────────────
+    def clear(self) -> None:
+        """Delete all stored memory."""
+        self._conn.execute("DELETE FROM memory")
+        self._conn.commit()
 
-    def _compress(self):
-        turns    = self.data["turns"]
-        cutoff   = len(turns) - MAX_VERBATIM_TURNS
-        old      = turns[:cutoff]
-        keep     = turns[cutoff:]
-        lines    = [
-            f"{t['role'].capitalize()}: {t['content'][:150].replace(chr(10),' ')}"
-            for t in old
-        ]
-        new_block = "\n".join(lines)
-        combined  = (self.data.get("summary", "") + "\n" + new_block).strip()
-        if len(combined) > MAX_SUMMARY_CHARS:
-            combined = combined[-MAX_SUMMARY_CHARS:]
-        self.data["summary"] = combined
-        self.data["turns"]   = keep
+    def search(self, query: str, limit: int = 5) -> List[Dict]:
+        """Simple keyword search through memory content."""
+        rows = self._conn.execute(
+            "SELECT role, content, ts FROM memory WHERE content LIKE ? ORDER BY id DESC LIMIT ?",
+            (f"%{query}%", limit)
+        ).fetchall()
+        return [{"role": r["role"], "content": r["content"], "ts": r["ts"]} for r in rows]
+
+    def __len__(self) -> int:
+        return self._conn.execute("SELECT COUNT(*) FROM memory").fetchone()[0]
+
+    def __del__(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
