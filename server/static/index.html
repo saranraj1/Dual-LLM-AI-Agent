@@ -869,14 +869,12 @@ async function sendMessage(msg, asTask = false) {
   appendMessage('user', msg);
   setStreaming(true);
 
-  const isSlash = msg.startsWith('/') && !asTask && currentMode !== 'run';
-  const endpoint = asTask || currentMode === 'run'
-    ? '/run'
-    : isSlash ? '/command' : '/chat';
+  // Slash commands ALWAYS go to /command (even in Run Task mode)
+  const isSlash = msg.startsWith('/') && !asTask;
 
   try {
     if (isSlash) {
-      // ── Slash command — blocking JSON response ───────────────────────────
+      // ── Slash command — blocking JSON response ─────────────────────────────────────
       const typingId = appendTyping();
       const resp = await fetch(API + '/command', {
         method:  'POST',
@@ -890,9 +888,11 @@ async function sendMessage(msg, asTask = false) {
         appendMessage('agent', `❌ **${resp.status}**: ${data.detail || JSON.stringify(data)}`);
         toast(`Command failed: ${resp.status}`, 'error');
       } else {
-        const result = data.result || '(no output)';
+        const raw    = data.result;
+        const result = raw === null || raw === undefined
+          ? '(no output)'
+          : typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
         const msgId = appendAgentMessage();
-        // Simulate streaming feel for large results
         appendToken(msgId, result);
         finaliseMessage(msgId);
       }
@@ -900,11 +900,12 @@ async function sendMessage(msg, asTask = false) {
       return;
     }
 
-    // ── Chat / Run — SSE streaming ────────────────────────────────────────
+    // ── Chat / Run — SSE streaming ────────────────────────────────────────────────
     const typingId = appendTyping();
-    const body = asTask || currentMode === 'run'
+    const body = (asTask || currentMode === 'run')
       ? JSON.stringify({ task: msg })
       : JSON.stringify({ message: msg });
+    const endpoint = (asTask || currentMode === 'run') ? '/run' : '/chat';
 
     const resp = await fetch(API + endpoint, {
       method:  'POST',
@@ -926,8 +927,10 @@ async function sendMessage(msg, asTask = false) {
     const reader  = resp.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
+    let streamDone = false;
 
-    while (true) {
+    outer:
+    while (!streamDone) {
       const { done, value } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
@@ -938,13 +941,22 @@ async function sendMessage(msg, asTask = false) {
         if (line.startsWith('data: ')) {
           try {
             const token = JSON.parse(line.slice(6));
-            if (token) appendToken(msgId, token);
+            if (token !== null && token !== undefined && token !== '')
+              appendToken(msgId, token);
           } catch {}
         }
-        if (line.startsWith('event: done'))  finaliseMessage(msgId);
-        if (line.startsWith('event: error')) toast('Streaming error', 'error');
+        if (line.startsWith('event: done')) {
+          finaliseMessage(msgId);   // first and only call
+          streamDone = true;
+          break outer;              // stop reading immediately — prevents double-finalise
+        }
+        if (line.startsWith('event: error')) {
+          toast('Streaming error', 'error');
+        }
       }
     }
+
+    // Safety net: finalise only if event:done was never received
     finaliseMessage(msgId);
     refreshStats();
 
@@ -1022,6 +1034,8 @@ function appendToken(id, token) {
 }
 
 function finaliseMessage(id) {
+  // Idempotent — second call is a no-op so double-finalise can't blank the bubble
+  if (!Object.prototype.hasOwnProperty.call(_agentBuf, id)) return;
   const bubble = document.getElementById(`${id}-bubble`);
   if (bubble) {
     bubble.innerHTML = renderMarkdown(_agentBuf[id] || '');

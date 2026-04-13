@@ -1,0 +1,11 @@
+// Assuming this file contains the Graphviz code for the flowchart
+digraph G {
+    node[shape=box];
+    start[label="Start"];
+    call_say_hello[label="Call say_hello function"];
+    print_hello[label="Print Hello to console"];
+    end[label="End"];
+    start -> call_say_hello;
+    call_say_hello -> print_hello;
+    print_hello -> end;
+}

@@ -1,0 +1,11 @@
+digraph flowchart {
+    node[shape=box, style=filled];
+    start[label="Start"];
+    say_hello[label="Call say_hello function"];
+    print_hello[label="Print 'Hello' to console"];
+    end[label="End"];
+
+    start -> say_hello;
+    say_hello -> print_hello;
+    print_hello -> end;
+}
