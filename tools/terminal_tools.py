@@ -1,12 +1,17 @@
 """
-tools/terminal_tools.py — Execute shell commands safely.
-Guards against dangerous commands. Timeout protected.
+tools/terminal_tools.py — Cross-platform shell command execution (Step 4).
+
+- Uses `bash` on macOS/Linux, PowerShell-compatible `shell=True` on Windows
+- All paths use pathlib.Path instead of hardcoded C:\\ strings
+- Guards against dangerous commands
+- Timeout protected
 """
 
 import subprocess
-import shlex
+import sys
 import os
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 from config.settings import ALLOW_SHELL, SHELL_TIMEOUT
 
 # Commands that are never allowed regardless of settings
@@ -19,6 +24,8 @@ BLOCKED_COMMANDS = {
 
 WARN_PATTERNS = ["sudo", "chmod 777", "chown", "passwd", "rm -rf"]
 
+_IS_WINDOWS = sys.platform == "win32"
+
 
 def _is_blocked(cmd: str) -> bool:
     low = cmd.lower()
@@ -30,52 +37,104 @@ def _has_warnings(cmd: str) -> List[str]:
     return [w for w in WARN_PATTERNS if w in low]
 
 
+def _resolve_cwd(cwd: Optional[str]) -> str:
+    """Resolve cwd, always returning an absolute path string."""
+    if cwd is None:
+        return str(Path.cwd())
+    return str(Path(cwd).expanduser().resolve())
+
+
 def run_command(
     command: str,
-    cwd: str = None,
+    cwd: Optional[str] = None,
     timeout: int = SHELL_TIMEOUT,
-    env_extra: dict = None
+    env_extra: Optional[dict] = None,
 ) -> Dict:
     """
-    Run a shell command. Returns stdout, stderr, exit code.
-    cwd defaults to current directory if None.
+    Run a shell command safely. Returns:
+        {ok, stdout, stderr, exit, warnings}
+
+    On Windows: uses shell=True (cmd.exe / PowerShell compatible).
+    On macOS/Linux: uses bash -c for consistent behaviour.
     """
     if not ALLOW_SHELL:
-        return {"ok": False, "stdout": "", "stderr": "Shell disabled (ALLOW_SHELL=False in settings.py)"}
+        return {
+            "ok": False, "stdout": "", "exit": -1,
+            "stderr": "Shell disabled (ALLOW_SHELL=False in settings.py)",
+            "warnings": [],
+        }
 
     if _is_blocked(command):
-        return {"ok": False, "stdout": "", "stderr": f"Blocked: dangerous command pattern detected."}
+        return {
+            "ok": False, "stdout": "", "exit": -1,
+            "stderr": "Blocked: dangerous command pattern detected.",
+            "warnings": [],
+        }
 
     warnings = _has_warnings(command)
+    resolved_cwd = _resolve_cwd(cwd)
 
     env = os.environ.copy()
     if env_extra:
         env.update(env_extra)
 
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=cwd or os.getcwd(),
-            env=env
-        )
+        if _IS_WINDOWS:
+            # Windows — shell=True uses cmd.exe; handles git, pip, python fine
+            proc = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=resolved_cwd,
+                env=env,
+                encoding="utf-8",
+                errors="replace",
+            )
+        else:
+            # macOS / Linux — explicit bash for consistency
+            proc = subprocess.run(
+                ["bash", "-c", command],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=resolved_cwd,
+                env=env,
+                encoding="utf-8",
+                errors="replace",
+            )
+
         return {
-            "ok":       result.returncode == 0,
-            "stdout":   result.stdout.strip()[:2000],
-            "stderr":   result.stderr.strip()[:500],
-            "exit":     result.returncode,
-            "warnings": warnings
+            "ok":       proc.returncode == 0,
+            "stdout":   proc.stdout.strip()[:2000],
+            "stderr":   proc.stderr.strip()[:500],
+            "exit":     proc.returncode,
+            "warnings": warnings,
         }
+
     except subprocess.TimeoutExpired:
-        return {"ok": False, "stdout": "", "stderr": f"Timed out after {timeout}s", "exit": -1}
+        return {
+            "ok": False, "stdout": "", "exit": -1,
+            "stderr": f"Command timed out after {timeout}s",
+            "warnings": warnings,
+        }
+    except FileNotFoundError as e:
+        return {
+            "ok": False, "stdout": "", "exit": -1,
+            "stderr": f"Command not found: {e}",
+            "warnings": warnings,
+        }
     except Exception as e:
-        return {"ok": False, "stdout": "", "stderr": str(e), "exit": -1}
+        from core.exceptions import ShellToolError
+        return {
+            "ok": False, "stdout": "", "exit": -1,
+            "stderr": f"Shell error: {e}",
+            "warnings": warnings,
+        }
 
 
-def run_commands(commands: List[str], cwd: str = None) -> List[Dict]:
+def run_commands(commands: List[str], cwd: Optional[str] = None) -> List[Dict]:
     """Run multiple commands in sequence. Stops on first failure."""
     results = []
     for cmd in commands:
@@ -92,5 +151,6 @@ def get_git_status(cwd: str = ".") -> Dict:
 
 
 def get_python_version() -> str:
-    r = run_command("python --version")
+    cmd = "python --version" if _IS_WINDOWS else "python3 --version"
+    r = run_command(cmd)
     return r.get("stdout") or r.get("stderr") or "unknown"

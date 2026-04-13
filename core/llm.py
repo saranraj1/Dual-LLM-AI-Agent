@@ -30,6 +30,7 @@ from config.settings import (
     GPU_LAYERS, CPU_THREADS, NUM_BATCH,
     GROQ_API_KEY, GROQ_MODEL, GROQ_HOST, AUTO_FALLBACK,
 )
+from core.exceptions import LLMError, BackendUnavailableError
 
 # ── Active backend state ──────────────────────────────────────────────────────
 _current_backend = "auto"
@@ -252,9 +253,12 @@ def ask(prompt: str, system: Optional[str] = None,
             if use_cache:
                 _cache_set(key, result)
             return result
+        except LLMError as e:
+            _stats["errors"] += 1
+            return f"[GROQ ERROR] {e}\n  Tip: check your GROQ_API_KEY in config/settings.py"
         except Exception as e:
             _stats["errors"] += 1
-            return f"[GROQ ERROR] {e}"
+            return f"[GROQ ERROR] {e}\n  Tip: check your internet connection and Groq API key"
 
     if use == "groq":
         return _do_groq()
@@ -280,7 +284,10 @@ def ask(prompt: str, system: Optional[str] = None,
             print(f"\n⚠️  Ollama unavailable ({e.__class__.__name__}). Switching to Groq ⚡")
             return _do_groq()
         _stats["errors"] += 1
-        return f"[LLM ERROR] Cannot reach Ollama — is it running? ({e})"
+        raise BackendUnavailableError(
+            f"Cannot reach Ollama — is it running? ({e})\n"
+            f"  Tip: run 'ollama serve' in a separate terminal, or use /model groq"
+        ) from e
 
 
 def ask_stream(prompt: str, system: Optional[str] = None,

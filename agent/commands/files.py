@@ -112,11 +112,9 @@ def cmd_run_file(agent, args: str) -> str:
         return output
 
     print(f"❌ Error:\n{r['stderr']}")
-    print(f"\n🔧 Agent is analyzing the error and fixing...")
 
     file_r = read_file(path)
     content = file_r["content"] if file_r["ok"] else ""
-
     prompt = f"""This Python file crashed with this error:
 {r['stderr'][:500]}
 
@@ -127,7 +125,16 @@ Current code:
 {content[:2000]}
 ```"""
 
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print(f"\n🔧 Agent is analyzing the error and fixing...")
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
+
+
     from agent.executor import _extract_file_blocks, _auto_write_files
     from agent.commands_base import _backup_file
     blocks = _extract_file_blocks(response)
@@ -181,7 +188,13 @@ Rules:
 ```"""
 
     print(f"\n🔄 Translating {filename} → {target_lang}...")
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
     from agent.executor import _extract_file_blocks, _auto_write_files
     blocks = _extract_file_blocks(response)
     if blocks:

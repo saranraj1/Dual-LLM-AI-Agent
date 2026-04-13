@@ -42,6 +42,7 @@ from tools.notifications  import notify_task_done, notify_info
 from tools.knowledge_base import kb_context
 from core.llm             import ask, ask_stream, get_backend
 from core.prompt_builder  import build, SYSTEM_PROMPT
+from core.exceptions      import BackendUnavailableError, AgentError
 from core.ui              import (
     C, Spinner, ok, warn, err, info, step, dim, bold,
     agent_label, print_separator, print_task_start, print_step,

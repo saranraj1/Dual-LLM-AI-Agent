@@ -73,7 +73,13 @@ Current code:
 ```"""
 
     print("\n🚀 Optimizing...")
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
 
     from agent.executor import _extract_file_blocks, _auto_write_files
     from agent.commands_base import _backup_file
@@ -119,7 +125,13 @@ Original:
 ```"""
 
     print(f"\n🔨 Refactoring {target}...")
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
 
     from agent.executor import _extract_file_blocks, _auto_write_files
     from agent.commands_base import _backup_file
@@ -232,7 +244,13 @@ Lint errors:
 
 Relevant code:
 {agent.code_context[:1200]}"""
-        response = ask(prompt, system=SYSTEM_PROMPT)
+        print("Agent › ", end="", flush=True)
+        full = ""
+        for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+            print(token, end="", flush=True)
+            full += token
+        print()
+        response = full
         from agent.executor import _extract_file_blocks, _auto_write_files
         from agent.commands_base import _backup_file
         blocks = _extract_file_blocks(response)

@@ -1,56 +1,126 @@
 """
-tools/knowledge_base.py — Local document knowledge base.
+tools/knowledge_base.py — Semantic vector search knowledge base (Step 5).
 
-Index your own PDFs, Word docs, text files, and Markdown notes.
-The agent automatically searches relevant snippets into every prompt.
+Upgrades from keyword overlap scoring to true semantic embeddings using
+sentence-transformers (all-MiniLM-L6-v2).
 
-Commands:
-    /kb add <file|folder>   → index document(s)
-    /kb search <query>      → search indexed knowledge
-    /kb list                → list all indexed documents
-    /kb clear               → remove all indexed documents
+Embeddings are stored as BLOBs in SQLite for fast retrieval with no
+external vector DB required.
 
-Storage: ~/.ai_agent/knowledge_base.json
+Falls back to keyword search if sentence-transformers is not installed,
+so the agent still works without the optional dependency.
+
+Install for full semantic search:
+    pip install sentence-transformers
 """
 
 import os
 import re
 import json
+import sqlite3
 import hashlib
+import struct
+import sys
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
-KB_PATH = Path.home() / ".ai_agent" / "knowledge_base.json"
-KB_PATH.parent.mkdir(parents=True, exist_ok=True)
+from core.exceptions import KnowledgeBaseError
 
-CHUNK_SIZE  = 800   # chars per chunk
-CHUNK_OVER  = 100   # overlap between chunks
-MAX_RESULTS = 3     # max chunks returned per search
+# ── Storage paths ─────────────────────────────────────────────────────────────
+
+AGENT_HOME   = Path.home() / ".ai_agent"
+KB_DB_PATH   = AGENT_HOME / "knowledge_base.db"
+AGENT_HOME.mkdir(parents=True, exist_ok=True)
+
+CHUNK_SIZE   = 800
+CHUNK_OVER   = 100
+MAX_RESULTS  = 3
+EMBED_MODEL  = "all-MiniLM-L6-v2"
+
+# ── Schema ─────────────────────────────────────────────────────────────────────
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS documents (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    path      TEXT UNIQUE NOT NULL,
+    file_hash TEXT NOT NULL,
+    chunks    INTEGER DEFAULT 0,
+    size      INTEGER DEFAULT 0,
+    indexed_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now'))
+);
+CREATE TABLE IF NOT EXISTS chunks (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id    INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    source    TEXT NOT NULL,
+    text      TEXT NOT NULL,
+    start_pos INTEGER DEFAULT 0,
+    embedding BLOB    -- NULL when sentence-transformers not installed
+);
+CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source);
+"""
 
 
-# ── Persistence ───────────────────────────────────────────────────────────────
+# ── DB connection ─────────────────────────────────────────────────────────────
 
-def _load() -> Dict:
-    if KB_PATH.exists():
-        try:
-            return json.loads(KB_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {"docs": {}, "chunks": []}
+def _conn() -> sqlite3.Connection:
+    c = sqlite3.connect(str(KB_DB_PATH))
+    c.execute("PRAGMA foreign_keys = ON")
+    c.execute("PRAGMA journal_mode = WAL")
+    c.executescript(_SCHEMA)
+    c.commit()
+    return c
 
 
-def _save(db: Dict):
-    KB_PATH.write_text(json.dumps(db, indent=2, ensure_ascii=False), encoding="utf-8")
+# ── Embedding helpers ─────────────────────────────────────────────────────────
+
+_model = None  # lazy-loaded
+
+def _get_model():
+    """Lazy-load the sentence-transformers model once."""
+    global _model
+    if _model is not None:
+        return _model
+    try:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer(EMBED_MODEL)
+        return _model
+    except ImportError:
+        return None
+
+
+def _embed(text: str) -> Optional[bytes]:
+    """Return embedding as raw bytes, or None if model unavailable."""
+    model = _get_model()
+    if model is None:
+        return None
+    try:
+        vec = model.encode(text, normalize_embeddings=True)
+        return struct.pack(f"{len(vec)}f", *vec)
+    except Exception:
+        return None
+
+
+def _decode_embed(blob: bytes) -> Optional[list]:
+    """Decode stored blob back to float list."""
+    if blob is None:
+        return None
+    n = len(blob) // 4
+    return list(struct.unpack(f"{n}f", blob))
+
+
+def _cosine(a: list, b: list) -> float:
+    """Cosine similarity between two normalised vectors."""
+    return sum(x * y for x, y in zip(a, b))
 
 
 # ── Text extraction ───────────────────────────────────────────────────────────
 
 def _extract_text(path: Path) -> Optional[str]:
-    """Extract plaintext from .txt, .md, .py, .pdf, .docx, .csv, .json."""
+    """Extract plain text from supported file types."""
     ext = path.suffix.lower()
 
     if ext in (".txt", ".md", ".py", ".js", ".ts", ".html", ".css",
-               ".yaml", ".yml", ".toml", ".ini", ".sh", ".bat"):
+               ".yaml", ".yml", ".toml", ".ini", ".sh", ".bat", ".rst"):
         return path.read_text(encoding="utf-8", errors="ignore")
 
     if ext == ".json":
@@ -66,12 +136,7 @@ def _extract_text(path: Path) -> Optional[str]:
             reader = pypdf.PdfReader(str(path))
             return "\n".join(page.extract_text() or "" for page in reader.pages)
         except ImportError:
-            try:
-                import pdfplumber
-                with pdfplumber.open(str(path)) as pdf:
-                    return "\n".join(p.extract_text() or "" for p in pdf.pages)
-            except ImportError:
-                return f"[PDF] Install pypdf to index: pip install pypdf"
+            return "[PDF] Install pypdf: pip install pypdf"
 
     if ext == ".docx":
         try:
@@ -79,7 +144,7 @@ def _extract_text(path: Path) -> Optional[str]:
             doc = docx.Document(str(path))
             return "\n".join(p.text for p in doc.paragraphs)
         except ImportError:
-            return f"[DOCX] Install python-docx to index: pip install python-docx"
+            return "[DOCX] Install python-docx: pip install python-docx"
 
     if ext == ".csv":
         return path.read_text(encoding="utf-8", errors="ignore")[:5000]
@@ -87,18 +152,14 @@ def _extract_text(path: Path) -> Optional[str]:
     return None
 
 
-def _chunk(text: str, source: str) -> List[Dict]:
-    """Split text into overlapping chunks with source metadata."""
+def _chunk_text(text: str, source: str) -> List[Dict]:
+    """Split text into overlapping chunks."""
     chunks = []
     i = 0
     while i < len(text):
-        chunk = text[i:i + CHUNK_SIZE]
+        chunk = text[i : i + CHUNK_SIZE]
         if chunk.strip():
-            chunks.append({
-                "source": source,
-                "text":   chunk,
-                "start":  i,
-            })
+            chunks.append({"source": source, "text": chunk, "start": i})
         i += CHUNK_SIZE - CHUNK_OVER
     return chunks
 
@@ -107,74 +168,132 @@ def _chunk(text: str, source: str) -> List[Dict]:
 
 def kb_add(path_str: str) -> str:
     """Index a file or folder into the knowledge base."""
-    db   = _load()
     path = Path(path_str).expanduser().resolve()
-    added = []
 
     if path.is_dir():
-        files = [f for f in path.rglob("*") if f.is_file()
-                 and f.suffix.lower() in (
-                     ".txt", ".md", ".pdf", ".docx", ".py", ".js",
-                     ".ts", ".yaml", ".yml", ".json", ".csv", ".sh"
-                 )]
+        files = [
+            f for f in path.rglob("*")
+            if f.is_file() and f.suffix.lower() in (
+                ".txt", ".md", ".pdf", ".docx", ".py", ".js",
+                ".ts", ".yaml", ".yml", ".json", ".csv", ".sh", ".rst"
+            )
+        ]
     elif path.is_file():
         files = [path]
     else:
         return f"❌ Path not found: {path_str}"
 
-    for f in files:
-        text = _extract_text(f)
-        if not text or not text.strip():
-            continue
+    has_semantic = _get_model() is not None
+    if has_semantic:
+        mode = "🧠 semantic"
+    else:
+        mode = "🔤 keyword (pip install sentence-transformers for semantic)"
 
-        file_hash = hashlib.md5(text.encode()).hexdigest()
-        rel       = str(f)
+    added = []
+    db = _conn()
+    try:
+        for f in files:
+            try:
+                text = _extract_text(f)
+                if not text or not text.strip():
+                    continue
 
-        # Skip if already indexed and unchanged
-        existing = db["docs"].get(rel, {})
-        if existing.get("hash") == file_hash:
-            continue
+                file_hash = hashlib.md5(text.encode()).hexdigest()
+                rel = str(f)
 
-        # Remove old chunks for this doc
-        db["chunks"] = [c for c in db["chunks"] if c["source"] != rel]
+                # Check if already indexed and unchanged
+                row = db.execute(
+                    "SELECT id, file_hash FROM documents WHERE path = ?", (rel,)
+                ).fetchone()
 
-        # Add new chunks
-        chunks = _chunk(text, rel)
-        db["chunks"].extend(chunks)
-        db["docs"][rel] = {
-            "hash":   file_hash,
-            "chunks": len(chunks),
-            "size":   len(text),
-        }
-        added.append(f"  ✅ {f.name} ({len(chunks)} chunks, {len(text):,} chars)")
+                if row and row[1] == file_hash:
+                    continue  # up to date
 
-    _save(db)
+                # Delete old chunks
+                if row:
+                    db.execute("DELETE FROM chunks WHERE doc_id = ?", (row[0],))
+                    db.execute("DELETE FROM documents WHERE id = ?", (row[0],))
+
+                # Insert document
+                db.execute(
+                    "INSERT INTO documents (path, file_hash, chunks, size) VALUES (?, ?, ?, ?)",
+                    (rel, file_hash, 0, len(text))
+                )
+                doc_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+                # Insert chunks
+                chunks = _chunk_text(text, rel)
+                for ch in chunks:
+                    emb = _embed(ch["text"])
+                    db.execute(
+                        "INSERT INTO chunks (doc_id, source, text, start_pos, embedding) VALUES (?,?,?,?,?)",
+                        (doc_id, rel, ch["text"], ch["start"], emb)
+                    )
+                db.execute(
+                    "UPDATE documents SET chunks = ? WHERE id = ?",
+                    (len(chunks), doc_id)
+                )
+                db.commit()
+                added.append(f"  ✅ {f.name} ({len(chunks)} chunks, {len(text):,} chars)")
+
+            except Exception as e:
+                added.append(f"  ⚠️  {f.name}: {e}")
+    finally:
+        db.close()
+
     if not added:
         return "ℹ️  No new documents to index (all up to date)"
-    return f"📚 Indexed {len(added)} documents:\n" + "\n".join(added)
+    return f"📚 Indexed {len(added)} documents [{mode}]:\n" + "\n".join(added)
 
 
 def kb_search(query: str, max_results: int = MAX_RESULTS) -> List[Dict]:
-    """Search knowledge base — returns list of {source, text, score} dicts."""
-    db   = _load()
-    if not db["chunks"]:
+    """
+    Search the knowledge base.
+    Uses semantic cosine similarity if embeddings are available,
+    falls back to keyword overlap scoring otherwise.
+    Returns list of {source, text, score} dicts.
+    """
+    db = _conn()
+    try:
+        rows = db.execute(
+            "SELECT source, text, embedding FROM chunks"
+        ).fetchall()
+    finally:
+        db.close()
+
+    if not rows:
         return []
 
-    query_words = set(re.findall(r'\w+', query.lower()))
-    scored = []
+    query_emb = _embed(query)
 
-    for chunk in db["chunks"]:
-        chunk_words = set(re.findall(r'\w+', chunk["text"].lower()))
-        overlap     = len(query_words & chunk_words)
-        if overlap > 0:
-            scored.append({**chunk, "score": overlap})
+    if query_emb is not None:
+        # ── Semantic search ───────────────────────────────────────────────
+        q_vec = _decode_embed(query_emb)
+        scored = []
+        for source, text, blob in rows:
+            if blob is None:
+                continue
+            vec = _decode_embed(blob)
+            if vec:
+                score = _cosine(q_vec, vec)
+                scored.append({"source": source, "text": text, "score": round(score, 4)})
+        scored.sort(key=lambda x: x["score"], reverse=True)
+    else:
+        # ── Keyword fallback ──────────────────────────────────────────────
+        query_words = set(re.findall(r"\w+", query.lower()))
+        scored = []
+        for source, text, _ in rows:
+            chunk_words = set(re.findall(r"\w+", text.lower()))
+            overlap = len(query_words & chunk_words)
+            if overlap > 0:
+                scored.append({"source": source, "text": text, "score": overlap})
+        scored.sort(key=lambda x: x["score"], reverse=True)
 
-    scored.sort(key=lambda x: x["score"], reverse=True)
     return scored[:max_results]
 
 
 def kb_context(query: str) -> str:
-    """Build a context string from KB search results for prompt injection."""
+    """Build prompt-injection string from KB search results."""
     results = kb_search(query)
     if not results:
         return ""
@@ -187,25 +306,58 @@ def kb_context(query: str) -> str:
 
 def kb_list() -> str:
     """List all indexed documents."""
-    db = _load()
-    if not db["docs"]:
+    db = _conn()
+    try:
+        docs = db.execute(
+            "SELECT path, file_hash, chunks, size, indexed_at FROM documents ORDER BY indexed_at DESC"
+        ).fetchall()
+        total_chunks = db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+    finally:
+        db.close()
+
+    if not docs:
         return "📭 Knowledge base is empty. Use /kb add <file> to index documents."
-    lines = [f"\n📚 Knowledge Base ({len(db['docs'])} documents, {len(db['chunks'])} chunks total)"]
-    lines.append("─" * 50)
-    for path, meta in db["docs"].items():
+
+    has_semantic = _get_model() is not None
+    mode = "🧠 Semantic (sentence-transformers)" if has_semantic else "🔤 Keyword"
+
+    lines = [
+        f"\n📚 Knowledge Base — {len(docs)} docs, {total_chunks} chunks  [{mode}]",
+        "─" * 55,
+    ]
+    for path, _, chunks, size, ts in docs:
         name = Path(path).name
-        lines.append(f"  • {name:<30} {meta['chunks']:>3} chunks  {meta['size']:>8,} chars")
+        lines.append(f"  • {name:<30} {chunks:>3} chunks  {size:>8,} chars")
         lines.append(f"    {path}")
-    lines.append(f"\n  Storage: {KB_PATH}")
+    lines.append(f"\n  DB: {KB_DB_PATH}")
     return "\n".join(lines)
 
 
 def kb_clear() -> str:
-    """Clear all indexed documents."""
-    _save({"docs": {}, "chunks": []})
+    """Remove all indexed documents and chunks."""
+    db = _conn()
+    try:
+        db.execute("DELETE FROM chunks")
+        db.execute("DELETE FROM documents")
+        db.commit()
+    finally:
+        db.close()
     return "🗑️  Knowledge base cleared."
 
 
 def kb_stats() -> dict:
-    db = _load()
-    return {"docs": len(db["docs"]), "chunks": len(db["chunks"])}
+    db = _conn()
+    try:
+        docs   = db.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        chunks = db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        has_emb = db.execute(
+            "SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    return {
+        "docs":          docs,
+        "chunks":        chunks,
+        "semantic":      has_emb > 0,
+        "model_loaded":  _get_model() is not None,
+    }

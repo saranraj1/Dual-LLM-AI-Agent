@@ -39,7 +39,13 @@ Return the COMPLETE file with docstrings added using FILE: {target} format.
 {r['content'][:2500]}
 ```"""
         print("\n📝 Adding docstrings...")
-        response = ask(prompt, system=SYSTEM_PROMPT)
+        print("Agent › ", end="", flush=True)
+        full = ""
+        for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+            print(token, end="", flush=True)
+            full += token
+        print()
+        response = full
         from agent.executor import _extract_file_blocks, _auto_write_files
         from agent.commands_base import _backup_file
         blocks = _extract_file_blocks(response)
@@ -73,7 +79,13 @@ Project structure:
 
 Codebase:
 {context[:2000]}"""
-        response = ask(prompt, system=SYSTEM_PROMPT)
+        print("Agent › ", end="", flush=True)
+        full = ""
+        for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+            print(token, end="", flush=True)
+            full += token
+        print()
+        response = full
         from agent.executor import _extract_file_blocks, _auto_write_files
         blocks = _extract_file_blocks(response)
         if blocks:
@@ -105,7 +117,6 @@ def cmd_git(agent, args: str) -> str:
         changed = (diff_r["stdout"] or "") + "\n" + (status_r["stdout"] or "")
         if not changed.strip():
             return "Nothing to commit."
-        print("🤖 Generating commit message...")
         msg_prompt = f"""Write a concise, conventional git commit message for these changes.
 Format: <type>(<scope>): <description>
 Types: feat, fix, docs, refactor, test, chore
@@ -113,7 +124,14 @@ Keep it under 72 characters. Just output the message, nothing else.
 
 Changes:
 {changed[:800]}"""
-        commit_msg = ask(msg_prompt).strip().strip('"').strip("'")
+        print("🤖 Generating commit message...")
+        print("Agent › ", end="", flush=True)
+        full = ""
+        for token in ask_stream(msg_prompt):
+            print(token, end="", flush=True)
+            full += token
+        print()
+        commit_msg = full.strip().strip('"').strip("'")
         print(f"   Message: {commit_msg}")
     else:
         commit_msg = action
@@ -180,7 +198,13 @@ Use FILE: CHANGELOG.md format.
 Git log:
 {r['stdout']}"""
     print("\n📋 Generating CHANGELOG...")
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
     from agent.executor import _extract_file_blocks, _auto_write_files
     blocks = _extract_file_blocks(response)
     if blocks:
@@ -261,6 +285,7 @@ def cmd_deps(agent, args: str) -> str:
             continue
 
     third_party = {k: v for k, v in imports.items() if k not in stdlib and k not in ("__future__", "")}
+    pkg_list = ", ".join(third_party.keys())
     r = run_command("pip list --format=json", cwd=agent.workspace)
     installed = {}
     if r["ok"]:
@@ -276,11 +301,15 @@ def cmd_deps(agent, args: str) -> str:
         status = "✅" if pkg.lower() in installed else "❌"
         out.append(f"  {status} {pkg:<20} {ver}  (used in {len(files)} file(s))")
 
-    pkg_list = ", ".join(third_party.keys())
-    suggestion = ask(
+    print("Agent › ", end="", flush=True)
+    suggestion = ""
+    for token in ask_stream(
         f"Given these Python dependencies: {pkg_list}\n"
         f"List any outdated/deprecated packages with modern replacements. Be brief."
-    )
+    ):
+        print(token, end="", flush=True)
+        suggestion += token
+    print()
     out.append(f"\n  💡 Suggestions:\n{suggestion[:400]}")
     return "\n".join(out)
 
@@ -305,7 +334,13 @@ Code context:
 {agent.code_context[:1500]}"""
 
     print("\n📐 Generating architecture diagram...")
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
     from agent.executor import _extract_file_blocks, _auto_write_files
     blocks = _extract_file_blocks(response)
     if blocks:
@@ -341,7 +376,13 @@ Requirements:
 
 Create every file the project needs to run immediately after pip install -r requirements.txt"""
 
-    response = ask(prompt, system=SYSTEM_PROMPT)
+    print("Agent › ", end="", flush=True)
+    full = ""
+    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+        print(token, end="", flush=True)
+        full += token
+    print()
+    response = full
     from agent.executor import _extract_file_blocks, _auto_write_files
     blocks = _extract_file_blocks(response)
     if blocks:
