@@ -252,12 +252,41 @@ def _select_backend(args: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Autonomous Local AI Agent")
-    parser.add_argument("--project",  type=str)
-    parser.add_argument("--task",     type=str)
-    parser.add_argument("--memory",   action="store_true")
-    parser.add_argument("--clear",    action="store_true")
-    parser.add_argument("--no-check", action="store_true")
+    parser.add_argument("--project",       type=str,          help="Path to project (default: current dir)")
+    parser.add_argument("--task",          type=str,          help="One-shot task — run and exit")
+    parser.add_argument("--memory",        action="store_true", help="Show memory stats and exit")
+    parser.add_argument("--clear",         action="store_true", help="Clear all memory and exit")
+    parser.add_argument("--no-check",      action="store_true", help="Skip backend health check")
+    parser.add_argument("--serve",         action="store_true", help="Start the Web Chat UI + REST API server")
+    parser.add_argument("--port",          type=int, default=8000, help="Port for --serve (default: 8000)")
+    parser.add_argument("--host",          type=str, default="0.0.0.0", help="Host for --serve")
+    parser.add_argument("--install-hook",  action="store_true", help="Install git pre-commit hook in this project")
+    parser.add_argument("--strict-hook",   action="store_true", help="Install hook in STRICT mode (blocks commits on issues)")
+    parser.add_argument("--remove-hook",   action="store_true", help="Remove the git pre-commit hook")
     args = parser.parse_args()
+
+    workspace = os.path.abspath(args.project or os.getcwd())
+
+    # ── Git hook management ───────────────────────────────────────────────────
+    if args.install_hook or args.strict_hook:
+        from scripts.install_git_hook import install_hook
+        install_hook(workspace, strict=args.strict_hook)
+        return
+    if args.remove_hook:
+        from scripts.install_git_hook import remove_hook
+        remove_hook(workspace)
+        return
+
+    # ── Web server mode ───────────────────────────────────────────────────────
+    if args.serve:
+        try:
+            from server.api import serve
+            serve(host=args.host, port=args.port, workspace=workspace)
+        except ImportError:
+            print(err("Web server requires: pip install fastapi uvicorn sse-starlette"))
+            print("     Run: pip install -e \".[server]\"")
+            sys.exit(1)
+        return
 
     if not args.no_check:
         print(f"\n{C.CYAN}⏳ Checking backends...{C.RESET}")
@@ -277,8 +306,7 @@ def main():
             set_backend("groq")
         print()
 
-    workspace = os.path.abspath(args.project or os.getcwd())
-    agent     = Agent(workspace=workspace)
+    agent = Agent(workspace=workspace)
 
     if args.memory:
         _show_memory(agent)

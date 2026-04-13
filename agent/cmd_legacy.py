@@ -293,14 +293,33 @@ def cmd_fix(agent, args: str) -> str:
     fixed = []
     for issue in issues:
         print(f"\n🔧 Fixing {issue['file']}...")
+
+        # ── Load past fix hints (Feature 7) ───────────────────────────────────
+        hints_text = ""
+        try:
+            from memory.fix_memory import fix_memory
+            hints_text = fix_memory.format_hints_for_prompt(issue["issue"])
+            if hints_text:
+                print(f"   💡 Found {len(fix_memory.get_hints(issue['issue']))} similar past fix(es) — injecting as context")
+        except Exception:
+            pass
+
         prompt = f"""Fix this Python file. It has this error: {issue['issue']}
 Return the COMPLETE fixed file using FILE: {issue['file']} format.
+
+{hints_text}
 
 Current code:
 ```python
 {issue['content'][:2000]}
 ```"""
-        response = ask(prompt, system=SYSTEM_PROMPT)
+        print("Agent › ", end="", flush=True)
+        full = ""
+        for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+            print(token, end="", flush=True)
+            full += token
+        print()
+        response = full
 
         from agent.executor import _extract_file_blocks, _auto_write_files
         blocks = _extract_file_blocks(response)
@@ -309,6 +328,14 @@ Current code:
             written = _auto_write_files(blocks, agent.workspace)
             fixed.extend(written)
             print(f"   ✅ Fixed and saved: {written}")
+            # ── Record this successful fix for future use ──────────────────────
+            try:
+                from memory.fix_memory import fix_memory
+                ext = Path(issue["file"]).suffix or ".py"
+                fix_desc = response[:300].split("\n")[0]  # first line of response as summary
+                fix_memory.record(issue["issue"], fix_desc, file_type=ext)
+            except Exception:
+                pass
         else:
             print(f"   ⚠️  Could not auto-fix {issue['file']}")
 
@@ -316,6 +343,7 @@ Current code:
     if fixed:
         return f"✅ Fixed {len(fixed)} file(s): {', '.join(fixed)}"
     return f"⚠️  Found {len(issues)} issue(s) but could not auto-fix all of them."
+
 
 
 # ── /todo ─────────────────────────────────────────────────────────────────────

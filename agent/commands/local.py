@@ -96,23 +96,29 @@ def cmd_digest(agent, args: str) -> str:
 
 def cmd_time(agent, args: str) -> str:
     from tools.terminal_tools import run_command
+    from core.llm import get_backend, get_stats
+    from core.logger import get_log_path
 
     elapsed = int(_time.time() - agent._session_start)
     h, rem = divmod(elapsed, 3600)
-    m, s = divmod(rem, 60)
+    m, s   = divmod(rem, 60)
 
     r = run_command("git log --oneline -5 --since='8 hours ago'", cwd=agent.workspace)
     recent_commits = (r.get("stdout") or "").strip()
 
-    from core.llm import get_backend, get_stats
+    st = get_stats()
     lines = [
         f"\n⏱️  Session Statistics",
-        f"{'─'*40}",
-        f"  Duration    : {h:02d}h {m:02d}m {s:02d}s",
-        f"  Tasks run   : {agent._task_count}",
-        f"  Chat turns  : {len(agent.short_mem)}",
-        f"  Backend     : {get_backend()}",
-        f"  Clip monitor: {'ON 🟢' if agent._clip_monitor.is_enabled else 'OFF 🔴'}",
+        f"{'─'*45}",
+        f"  Duration      : {h:02d}h {m:02d}m {s:02d}s",
+        f"  Tasks run     : {agent._task_count}",
+        f"  Chat turns    : {len(agent.short_mem)}",
+        f"  Backend       : {get_backend()}",
+        f"  Clip monitor  : {'ON 🟢' if agent._clip_monitor.is_enabled else 'OFF 🔴'}",
+        f"\n  LLM Calls:",
+        f"    Ollama calls  : {st['ollama_calls']}",
+        f"    Groq calls    : {st['groq_calls']}",
+        f"    Cache hits    : {st['cache_hits']} (saved {st['cache_hits']} API calls)",
     ]
 
     if recent_commits:
@@ -120,11 +126,25 @@ def cmd_time(agent, args: str) -> str:
         for line in recent_commits.splitlines():
             lines.append(f"    • {line}")
 
-    st = get_stats()
-    lines += [
-        f"\n  LLM Calls:",
-        f"    Ollama calls : {st['ollama_calls']}",
-        f"    Groq calls   : {st['groq_calls']}",
-        f"    Cache hits   : {st['cache_hits']} (avoided {st['cache_hits']} API calls)",
-    ]
+    # ── Cost tracker (Feature 9) ──────────────────────────────────────────────
+    try:
+        from core.cost_tracker import tracker
+        lines.append("")
+        lines.append(tracker.summary(verbose=True))
+    except Exception:
+        pass
+
+    # ── Fix memory (Feature 7) ────────────────────────────────────────────────
+    try:
+        from memory.fix_memory import fix_memory
+        fm_stats = fix_memory.stats()
+        if fm_stats["total_patterns"] > 0:
+            lines.append(f"\n  Fix Memory: {fm_stats['total_patterns']} patterns learned")
+    except Exception:
+        pass
+
+    # ── Log file location ─────────────────────────────────────────────────────
+    lines.append(f"\n  Log file: {get_log_path()}")
+
     return "\n".join(lines)
+

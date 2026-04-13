@@ -31,6 +31,18 @@ from config.settings import (
     GROQ_API_KEY, GROQ_MODEL, GROQ_HOST, AUTO_FALLBACK,
 )
 from core.exceptions import LLMError, BackendUnavailableError
+from core.retry import with_retry, RETRYABLE_STATUSES
+from core.logger import get_logger
+
+log = get_logger(__name__)
+
+# Lazy import cost_tracker to avoid circular imports at module load
+def _cost_tracker():
+    try:
+        from core.cost_tracker import tracker
+        return tracker
+    except Exception:
+        return None
 
 # ── Active backend state ──────────────────────────────────────────────────────
 _current_backend = "auto"
@@ -101,14 +113,23 @@ def _ollama_payload(prompt: str, system: Optional[str], stream: bool) -> dict:
 
 
 def _ollama_ask(prompt: str, system: Optional[str] = None) -> str:
-    data = json.dumps(_ollama_payload(prompt, system, stream=False)).encode()
-    req  = urllib.request.Request(
-        f"{OLLAMA_HOST}/api/generate", data=data,
-        headers={"Content-Type": "application/json"}, method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        _stats["ollama_calls"] += 1
-        return json.loads(resp.read().decode()).get("response", "").strip()
+    def _call():
+        data = json.dumps(_ollama_payload(prompt, system, stream=False)).encode()
+        req  = urllib.request.Request(
+            f"{OLLAMA_HOST}/api/generate", data=data,
+            headers={"Content-Type": "application/json"}, method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            _stats["ollama_calls"] += 1
+            result = json.loads(resp.read().decode()).get("response", "").strip()
+            # Record in cost tracker (Ollama is free)
+            ct = _cost_tracker()
+            if ct:
+                tokens = ct.estimate_tokens(prompt + (result or ""))
+                ct.record("local", MODEL_NAME, tokens // 2, tokens // 2)
+            log.debug("ollama_ask completed", extra={"tokens_est": len(prompt) // 4})
+            return result
+    return with_retry(_call, label="ollama_ask")
 
 
 def _ollama_stream(prompt: str, system: Optional[str] = None) -> Generator[str, None, None]:
@@ -150,15 +171,27 @@ def _groq_payload(prompt: str, system: Optional[str], stream: bool) -> dict:
 
 
 def _groq_ask(prompt: str, system: Optional[str] = None) -> str:
-    data = json.dumps(_groq_payload(prompt, system, stream=False)).encode()
-    req  = urllib.request.Request(
-        f"{GROQ_HOST}/chat/completions", data=data,
-        headers=_groq_headers(), method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        _stats["groq_calls"] += 1
-        result = json.loads(resp.read().decode())
-        return result["choices"][0]["message"]["content"].strip()
+    def _call():
+        data = json.dumps(_groq_payload(prompt, system, stream=False)).encode()
+        req  = urllib.request.Request(
+            f"{GROQ_HOST}/chat/completions", data=data,
+            headers=_groq_headers(), method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            _stats["groq_calls"] += 1
+            result = json.loads(resp.read().decode())
+            content = result["choices"][0]["message"]["content"].strip()
+            # Record real token counts from API response
+            usage = result.get("usage", {})
+            pt = usage.get("prompt_tokens", len(prompt) // 4)
+            ct_tok = usage.get("completion_tokens", len(content) // 4)
+            ctrk = _cost_tracker()
+            if ctrk:
+                ctrk.record("groq", GROQ_MODEL, pt, ct_tok)
+            log.debug("groq_ask completed",
+                      extra={"prompt_tokens": pt, "completion_tokens": ct_tok})
+            return content
+    return with_retry(_call, label="groq_ask")
 
 
 def _groq_stream(prompt: str, system: Optional[str] = None) -> Generator[str, None, None]:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dual-llm-ai-agent"
-version = "1.0.0"
+version = "1.1.0"
 description = "Autonomous coding assistant with dual LLM backend (Ollama local + Groq cloud)"
 readme = "README.md"
 license = { text = "MIT" }
@@ -35,6 +35,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+server = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "sse-starlette>=1.6.5",
+]
 semantic = [
     "sentence-transformers>=2.2.0",
 ]
@@ -43,6 +48,9 @@ dev = [
     "pytest-cov>=4.0.0",
 ]
 all = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "sse-starlette>=1.6.5",
     "sentence-transformers>=2.2.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -59,7 +67,7 @@ Issues = "https://github.com/saranraj1/Dual-LLM-AI-Agent/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["agent*", "core*", "tools*", "memory*", "config*"]
+include = ["agent*", "core*", "tools*", "memory*", "config*", "server*", "scripts*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.md", "*.txt", "*.yaml", "*.yml"]
