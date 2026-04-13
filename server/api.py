@@ -121,7 +121,7 @@ def get_agent() -> Agent:
     if _agent is None:
         workspace = os.environ.get("AGENT_WORKSPACE", os.getcwd())
         _agent = Agent(workspace=workspace)
-        log.info("agent initialised", extra={"workspace": workspace})
+        log.info("agent initialised — workspace: %s", workspace)
     return _agent
 
 
@@ -209,7 +209,7 @@ async def chat(req: ChatRequest):
     if req.workspace:
         agent.workspace = os.path.abspath(req.workspace)
 
-    log.info("chat", extra={"msg": req.message[:80]})
+    log.info("chat: %s", req.message[:80])
 
     def _generate():
         try:
@@ -271,7 +271,7 @@ async def run_task(req: RunRequest):
     if req.workspace:
         agent.workspace = os.path.abspath(req.workspace)
 
-    log.info("run", extra={"task": req.task[:80]})
+    log.info("run: %s", req.task[:80])
 
     def _generate():
         try:
@@ -320,10 +320,19 @@ async def run_command_endpoint(req: CommandRequest):
             f"Try: {', '.join('/' + k for k in list(_CMD_MAP.keys())[:10])}…"
         )
 
-    log.info("command", extra={"cmd": raw_cmd, "args": args[:60]})
+    log.info("command /%s %s", raw_cmd, args[:60])
 
     try:
-        result = method(args)
+        import inspect as _inspect
+        sig    = _inspect.signature(method)
+        params = list(sig.parameters.keys())
+        # Call with args only if method accepts a parameter (excluding 'self')
+        if params and params[0] not in ("self",):
+            result = method(args)
+        elif len(params) > 1:
+            result = method(args)
+        else:
+            result = method()
         return {"ok": True, "command": raw_cmd, "result": result or ""}
     except HTTPException:
         raise
