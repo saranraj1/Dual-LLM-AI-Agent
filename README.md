@@ -515,7 +515,7 @@ ai --remove-hook                             # uninstall hook
 
 - GPU: NVIDIA GTX 1650 (4 GB VRAM) — `phi3:mini` runs fully on GPU at ~30 tok/s
 - CPU: AMD Ryzen 5 5660H (6 cores)
-- RAM: 16 GB DDR4
+- RAM: 8 GB DDR4
 - OS: Windows 11 + Ubuntu 22.04
 
 For weaker hardware: `GPU_LAYERS=0` in `.env` or `/config gpu 0` live. Groq (free tier, 300+ tok/s) always available as fallback.
