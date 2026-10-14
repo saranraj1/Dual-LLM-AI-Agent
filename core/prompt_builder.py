@@ -87,10 +87,13 @@ def build(
         chunk = f"## Workspace Symbol Map\n{repo_map}"
         parts.append(_trim(chunk, budget // 4))
 
-    # 3. Code context
+    # 3. Code context (dynamically absorbs remaining budget)
     if code_context:
+        used_so_far = sum(len(p) for p in parts)
+        task_reserve = len(task) + 500
+        dyn_code_budget = max(budget // 3, budget - used_so_far - task_reserve)
         chunk = f"## Codebase Context\n{code_context}"
-        parts.append(_trim(chunk, budget // 3))
+        parts.append(_trim(chunk, dyn_code_budget))
 
     # 4. Tool output from previous step
     if tool_results:

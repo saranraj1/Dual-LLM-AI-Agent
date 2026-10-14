@@ -51,6 +51,8 @@ def run_command(
     cwd: Optional[str] = None,
     timeout: int = SHELL_TIMEOUT,
     env_extra: Optional[dict] = None,
+    max_stdout_chars: int = 8000,
+    max_stderr_chars: int = 4000,
 ) -> Dict:
     """
     Run a shell command safely. Returns:
@@ -113,8 +115,8 @@ def run_command(
 
         return {
             "ok":       proc.returncode == 0,
-            "stdout":   proc.stdout.strip()[:2000],
-            "stderr":   proc.stderr.strip()[:500],
+            "stdout":   proc.stdout.strip()[:max_stdout_chars],
+            "stderr":   proc.stderr.strip()[:max_stderr_chars],
             "exit":     proc.returncode,
             "warnings": warnings,
         }

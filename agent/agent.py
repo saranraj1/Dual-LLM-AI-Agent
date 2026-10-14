@@ -290,13 +290,14 @@ class Agent:
         if kb_ctx:
             full_code_ctx = kb_ctx + "\n\n" + full_code_ctx
 
+        raw_message = message
+
         # Multi-turn: prepend last 4 turns to the prompt for coherence
         convo_history = self._get_conversation_history(max_turns=4)
-        if convo_history:
-            message = convo_history + "\n\nUser: " + message
+        prompt_task = f"{convo_history}\n\nUser: {raw_message}" if convo_history else raw_message
 
         prompt = build(
-            task           = message,
+            task           = prompt_task,
             memory_context = mem,
             code_context   = full_code_ctx,
             repo_map       = self.repo_map,
@@ -313,9 +314,10 @@ class Agent:
             full += token
         print()
 
-        self.short_mem.add("user",      message)
+        # Save clean user prompt (without duplicated historical turns) to memory
+        self.short_mem.add("user",      raw_message)
         self.short_mem.add("assistant", full)
-        self.long_mem.add("user",       message)
+        self.long_mem.add("user",       raw_message)
         self.long_mem.add("assistant",  full[:400])
         self.long_mem.save()
 
@@ -335,20 +337,28 @@ class Agent:
         edit_blocks = _extract_edit_blocks(full)
         if edit_blocks:
             print(f"\n{C.CYAN}✏️  Auto-editing files from response...{C.RESET}")
+            from core.security import sanitize_path
             for eb in edit_blocks:
-                abs_path = os.path.join(self.workspace, eb["path"])
-                _backup_file(abs_path, self.workspace)
+                try:
+                    abs_path = str(sanitize_path(eb["path"], self.workspace))
+                    _backup_file(abs_path, self.workspace)
+                except Exception:
+                    pass
             _auto_edit_files(edit_blocks, self.workspace, confirm=self.confirm_edits)
-            self._refresh_scan(query=message)
+            self._refresh_scan(query=raw_message)
 
         file_blocks = _extract_file_blocks(full)
         if file_blocks:
             print(f"\n{C.CYAN}📝 Auto-writing files from response...{C.RESET}")
+            from core.security import sanitize_path
             for fb in file_blocks:
-                abs_path = os.path.join(self.workspace, fb["path"])
-                _backup_file(abs_path, self.workspace)
+                try:
+                    abs_path = str(sanitize_path(fb["path"], self.workspace))
+                    _backup_file(abs_path, self.workspace)
+                except Exception:
+                    pass
             _auto_write_files(file_blocks, self.workspace, confirm=self.confirm_edits)
-            self._refresh_scan(query=message)
+            self._refresh_scan(query=raw_message)
 
         pkgs = _extract_pip_packages(full)
         if pkgs:

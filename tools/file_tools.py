@@ -57,6 +57,9 @@ def append_file(path: str, content: str) -> Dict:
         return {"ok": False, "error": "Write disabled (ALLOW_WRITE=False)"}
     try:
         p = Path(path).resolve()
+        if is_sensitive_path(str(p)):
+            return {"ok": False, "error": f"Access Denied: Appending to protected secret store '{path}' is blocked."}
+        p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "a", encoding="utf-8") as f:
             f.write(content)
         return {"ok": True, "path": str(p)}
@@ -181,6 +184,8 @@ def replace_in_file(path: str, target: str, replacement: str) -> Dict:
             return {"ok": False, "error": f"File not found: {path}"}
         if not p.is_file():
             return {"ok": False, "error": f"Not a file: {path}"}
+        if is_sensitive_path(str(p)):
+            return {"ok": False, "error": f"Access Denied: Editing protected secret store '{path}' is blocked."}
 
         content = p.read_text(encoding="utf-8", errors="ignore")
         count = content.count(target)

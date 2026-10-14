@@ -533,8 +533,17 @@ FILE: path/to/file.py
                 b_path = sanitize_path(b_name, str(ws_path))
                 b_path.parent.mkdir(parents=True, exist_ok=True)
                 # Verify syntax before writing
-                syntax = validate_python_syntax(b["content"], filename=b_name)
-                if syntax["valid"]:
+                if b_name.endswith(".py"):
+                    syntax = validate_python_syntax(b["content"], filename=b_name)
+                    if syntax["valid"]:
+                        b_path.write_text(b["content"], encoding="utf-8")
+                elif b_name.endswith(".json"):
+                    try:
+                        json.loads(b["content"])
+                        b_path.write_text(b["content"], encoding="utf-8")
+                    except Exception:
+                        pass
+                else:
                     b_path.write_text(b["content"], encoding="utf-8")
 
         # Re-run pytest

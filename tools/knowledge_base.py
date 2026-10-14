@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source);
 # ── DB connection ─────────────────────────────────────────────────────────────
 
 def _conn() -> sqlite3.Connection:
-    c = sqlite3.connect(str(KB_DB_PATH))
+    c = sqlite3.connect(str(KB_DB_PATH), check_same_thread=False)
     c.execute("PRAGMA foreign_keys = ON")
     c.execute("PRAGMA journal_mode = WAL")
     c.executescript(_SCHEMA)

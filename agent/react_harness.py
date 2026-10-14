@@ -899,11 +899,20 @@ def run_react_loop(
     ):
         events.append(ev)
         turns = max(turns, ev.get("turn", 0))
-        if ev["type"] == "final_answer":
+        ev_type = ev.get("type")
+        if ev_type == "thought":
+            history.append(f"Thought: {ev.get('content')}")
+        elif ev_type == "action":
+            history.append(f"Action: {ev.get('tool')}({ev.get('input')})")
+        elif ev_type == "observation":
+            history.append(f"Observation: {ev.get('content')}")
+        elif ev_type == "final_answer":
             final_answer = ev["content"]
+            history.append(f"Final Answer: {final_answer}")
             is_ok = True
-        elif ev["type"] == "error":
+        elif ev_type == "error":
             final_answer = ev["content"]
+            history.append(f"Error: {final_answer}")
             is_ok = False
 
     return {

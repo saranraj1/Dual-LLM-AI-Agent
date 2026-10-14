@@ -9,12 +9,14 @@ Stop with: Ctrl+C
 import os
 import time
 import threading
+import sys
 from pathlib import Path
 from typing import Dict
 from config.settings import SUPPORTED_EXTENSIONS, SKIP_DIRS
 from tools.file_tools import read_file
 from core.llm import ask
 from core.prompt_builder import SYSTEM_PROMPT
+from core.security import sanitize_untrusted_input
 
 
 def _get_mtimes(root: str) -> Dict[str, float]:
@@ -41,7 +43,7 @@ def _review_file(filepath: str, workspace: str):
         return
 
     rel     = os.path.relpath(filepath, workspace)
-    content = r["content"][:2000]
+    content = sanitize_untrusted_input(r["content"][:2000], source=f"local_file:{rel}")
 
     prompt = f"""A file was just saved: {rel}
 Do a quick 3-point review:
@@ -67,6 +69,9 @@ def cmd_watch(agent, args: str) -> str:
     Usage: /watch
     Stop with Ctrl+C
     """
+    if not sys.stdin.isatty():
+        return "Watch mode requires an interactive terminal session and cannot run via headless API."
+
     root = agent.workspace
     print(f"\n👁️  Watching: {root}")
     print("   Agent will review files as you save them.")

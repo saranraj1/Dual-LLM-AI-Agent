@@ -82,24 +82,30 @@ def _groq_headers() -> dict:
 #  CACHE HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
+import threading
+
+_cache_lock = threading.Lock()
+
 def _cache_key(backend: str, system: Optional[str], prompt: str) -> str:
     raw = f"{backend}:{system}:{prompt}"
     return hashlib.md5(raw.encode()).hexdigest()
 
 
 def _cache_get(key: str) -> Optional[str]:
-    entry = _cache.get(key)
-    if entry and (time.time() - entry[1]) < _CACHE_TTL:
-        return entry[0]
-    return None
+    with _cache_lock:
+        entry = _cache.get(key)
+        if entry and (time.time() - entry[1]) < _CACHE_TTL:
+            return entry[0]
+        return None
 
 
 def _cache_set(key: str, value: str):
-    # Evict oldest if over 100 entries
-    if len(_cache) > 100:
-        oldest = min(_cache, key=lambda k: _cache[k][1])
-        del _cache[oldest]
-    _cache[key] = (value, time.time())
+    with _cache_lock:
+        # Evict oldest if over 100 entries
+        if len(_cache) > 100:
+            oldest = min(_cache, key=lambda k: _cache[k][1])
+            del _cache[oldest]
+        _cache[key] = (value, time.time())
 
 
 # ══════════════════════════════════════════════════════════════════════════════

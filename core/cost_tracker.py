@@ -15,6 +15,7 @@ Usage:
 
 import sqlite3
 import time
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -80,11 +81,12 @@ class CostTracker:
     """
 
     def __init__(self):
+        self._lock   = threading.Lock()
         self.session = SessionStats()
         self._conn   = self._init_db()
 
     def _init_db(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(COST_DB))
+        conn = sqlite3.connect(str(COST_DB), check_same_thread=False)
         conn.executescript(_SCHEMA)
         conn.commit()
         return conn
@@ -107,7 +109,7 @@ class CostTracker:
         completion_tokens: int   = 0,
     ) -> None:
         """
-        Record one LLM call.
+        Record one LLM call in a thread-safe manner.
 
         Args:
             backend:           "groq" | "local" | "ollama"
@@ -119,27 +121,28 @@ class CostTracker:
         if backend == "groq" and prompt_tokens > 0:
             cost = self._price(model, prompt_tokens, completion_tokens)
 
-        # ── Session accumulators ──────────────────────────────────────────────
-        if backend == "groq":
-            self.session.groq_calls += 1
-        else:
-            self.session.ollama_calls += 1
+        with self._lock:
+            # ── Session accumulators ──────────────────────────────────────────
+            if backend == "groq":
+                self.session.groq_calls += 1
+            else:
+                self.session.ollama_calls += 1
 
-        self.session.prompt_tokens     += prompt_tokens
-        self.session.completion_tokens += completion_tokens
-        self.session.total_tokens      += prompt_tokens + completion_tokens
-        self.session.cost_usd          += cost
+            self.session.prompt_tokens     += prompt_tokens
+            self.session.completion_tokens += completion_tokens
+            self.session.total_tokens      += prompt_tokens + completion_tokens
+            self.session.cost_usd          += cost
 
-        # ── Persist to DB ─────────────────────────────────────────────────────
-        try:
-            self._conn.execute(
-                "INSERT INTO cost_log (backend, model, prompt_tokens, completion_tokens, cost_usd) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (backend, model, prompt_tokens, completion_tokens, cost)
-            )
-            self._conn.commit()
-        except Exception:
-            pass  # never let tracking break the agent
+            # ── Persist to DB ─────────────────────────────────────────────────
+            try:
+                self._conn.execute(
+                    "INSERT INTO cost_log (backend, model, prompt_tokens, completion_tokens, cost_usd) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (backend, model, prompt_tokens, completion_tokens, cost)
+                )
+                self._conn.commit()
+            except Exception:
+                pass  # never let tracking break the agent
 
     def estimate_tokens(self, text: str) -> int:
         """Rough estimate: ~4 chars per token (GPT-style tokenisation)."""

@@ -34,10 +34,14 @@ def _extract_imports(source: str) -> Set[str]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
+                    imports.add(alias.name)
                     imports.add(alias.name.split(".")[0])
             elif isinstance(node, ast.ImportFrom):
                 if node.module:
+                    imports.add(node.module)
                     imports.add(node.module.split(".")[0])
+                    for alias in node.names:
+                        imports.add(f"{node.module}.{alias.name}")
                 # Relative imports: from . import x  (node.level > 0)
                 if node.level and node.level > 0:
                     imports.add("__relative__")

@@ -57,10 +57,21 @@ def extract_qwen_tool_calls(text: str) -> List[Dict[str, Any]]:
     return calls
 
 
+_REGISTRIES: Dict[str, Any] = {}
+
+
+def get_registry_for_workspace(workspace: str = ".") -> Any:
+    """Return a cached ToolRegistry for workspace, preventing MCP client re-spawn storms."""
+    norm = os.path.abspath(workspace)
+    if norm not in _REGISTRIES:
+        from agent.react_harness import ToolRegistry
+        _REGISTRIES[norm] = ToolRegistry(workspace=norm)
+    return _REGISTRIES[norm]
+
+
 def execute_tool_call(func: str, params: Dict[str, Any], workspace: str = ".") -> str:
-    """Execute a single tool call safely inside the workspace via ToolRegistry."""
-    from agent.react_harness import ToolRegistry
-    registry = ToolRegistry(workspace=workspace)
+    """Execute a single tool call safely inside the workspace via cached ToolRegistry."""
+    registry = get_registry_for_workspace(workspace)
     return registry.execute(func, params)
 
 

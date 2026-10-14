@@ -277,6 +277,8 @@ async def chat(req: ChatRequest):
             kb   = kb_context(req.message)
             mem  = agent._get_memory_context() if hasattr(agent, "_get_memory_context") else ""
             code = getattr(agent, "code_context", "")
+            convo_history = agent._get_conversation_history(max_turns=4) if hasattr(agent, "_get_conversation_history") else ""
+            prompt_task = f"{convo_history}\n\nUser: {req.message}" if convo_history else req.message
 
             # Build prompt using the real signature:
             # build(task, memory_context, code_context, tool_results, plan, current_step)
@@ -288,7 +290,7 @@ async def chat(req: ChatRequest):
             code_ctx = "\n\n".join(ctx_parts)
 
             prompt = _build_prompt(
-                task=req.message,
+                task=prompt_task,
                 memory_context=mem,
                 code_context=code_ctx,
             )

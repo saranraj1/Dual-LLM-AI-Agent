@@ -231,6 +231,46 @@ def _check_blast_radius_advisory(target_code: str, file_rel_path: str, cwd: str)
         pass
 
 
+def _resolve_and_clamp_path(raw_path: str, cwd_path: Path) -> Path:
+    """
+    Resolve a target file path within the workspace sandbox.
+    Handles relative paths, absolute workspace paths, and forces hallucinated
+    absolute paths (e.g. C:/project/main.py or /src/main.py) safely into cwd.
+    Blocks directory traversal and sensitive secret files.
+    """
+    from core.security import is_sensitive_path
+    clean = raw_path.strip().replace("\\", "/")
+
+    # Check if raw_path is already a legitimate absolute path inside workspace
+    try:
+        cand = Path(clean)
+        if cand.is_absolute():
+            cand_res = cand.resolve()
+            if cand_res.is_relative_to(cwd_path):
+                if is_sensitive_path(str(cand_res.relative_to(cwd_path))):
+                    raise PermissionError(f"Access Denied: Path '{raw_path}' targets protected credentials.")
+                return cand_res
+    except PermissionError:
+        raise
+    except Exception:
+        pass
+
+    # For hallucinated absolute paths like C:/project/main.py or /src/main.py,
+    # clamp relative to cwd_path as expected by path clamping contract
+    if ":" in clean:
+        clean = clean.split(":", 1)[1]
+    clean = clean.lstrip("/")
+
+    target = (cwd_path / clean).resolve()
+    if not target.is_relative_to(cwd_path):
+        raise PermissionError(f"Access Denied: Path '{raw_path}' escapes workspace sandbox '{cwd_path}'.")
+
+    if is_sensitive_path(str(target.relative_to(cwd_path))):
+        raise PermissionError(f"Access Denied: Path '{raw_path}' targets protected credentials.")
+
+    return target
+
+
 def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -> List[str]:
     """Apply surgical search/replace edit blocks to files safely."""
     edited = []
@@ -245,14 +285,14 @@ def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -
             pass
 
     for eb in edit_blocks:
-        path = eb["path"].strip().replace("\\", "/")
-        if ":" in path:
-            path = path.split(":", 1)[1]
-        path = path.lstrip("/")
-
-        target_path = (cwd_path / path).resolve()
-        if not target_path.is_relative_to(cwd_path):
-            print(f"   ⚠️  Blocked unsafe path escaping workspace: {eb['path']}")
+        try:
+            target_path = _resolve_and_clamp_path(eb["path"], cwd_path)
+            path = str(target_path.relative_to(cwd_path))
+        except PermissionError as pe:
+            print(f"   ⚠️  Security block on {eb.get('path')}: {pe}")
+            continue
+        except Exception as e:
+            print(f"   ⚠️  Invalid path {eb.get('path')}: {e}")
             continue
 
         if not target_path.exists():
@@ -330,14 +370,14 @@ def _auto_write_files(file_blocks: List[Dict], cwd: str, confirm: bool = False) 
             pass
 
     for fb in file_blocks:
-        path = fb["path"].strip().replace("\\", "/")
-        if ":" in path:
-            path = path.split(":", 1)[1]
-        path = path.lstrip("/")
-
-        target_path = (cwd_path / path).resolve()
-        if not target_path.is_relative_to(cwd_path):
-            print(f"   ⚠️  Blocked unsafe path escaping workspace: {fb['path']}")
+        try:
+            target_path = _resolve_and_clamp_path(fb["path"], cwd_path)
+            path = str(target_path.relative_to(cwd_path))
+        except PermissionError as pe:
+            print(f"   ⚠️  Security block on {fb.get('path')}: {pe}")
+            continue
+        except Exception as e:
+            print(f"   ⚠️  Invalid path {fb.get('path')}: {e}")
             continue
 
         if target_path.exists():

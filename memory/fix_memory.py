@@ -16,6 +16,7 @@ Storage: SQLite (~/.ai_agent/fix_memory.db)
 import re
 import sqlite3
 import hashlib
+import threading
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -83,10 +84,11 @@ class FixMemory:
     """
 
     def __init__(self):
+        self._lock = threading.Lock()
         self._conn = self._init_db()
 
     def _init_db(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(FIX_DB))
+        conn = sqlite3.connect(str(FIX_DB), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SCHEMA)
@@ -113,23 +115,24 @@ class FixMemory:
             return
 
         sig = _sig(error_text)
-        existing = self._conn.execute(
-            "SELECT id, hits FROM fix_patterns WHERE error_sig = ?", (sig,)
-        ).fetchone()
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT id, hits FROM fix_patterns WHERE error_sig = ?", (sig,)
+            ).fetchone()
 
-        if existing:
-            self._conn.execute(
-                "UPDATE fix_patterns SET hits = hits + 1, fix_desc = ?, "
-                "last_seen = strftime('%Y-%m-%dT%H:%M:%S', 'now') WHERE id = ?",
-                (fix_desc, existing["id"])
-            )
-        else:
-            self._conn.execute(
-                "INSERT INTO fix_patterns (error_sig, error_text, fix_desc, file_type) "
-                "VALUES (?, ?, ?, ?)",
-                (sig, error_text[:500], fix_desc[:1000], file_type)
-            )
-        self._conn.commit()
+            if existing:
+                self._conn.execute(
+                    "UPDATE fix_patterns SET hits = hits + 1, fix_desc = ?, "
+                    "last_seen = strftime('%Y-%m-%dT%H:%M:%S', 'now') WHERE id = ?",
+                    (fix_desc, existing["id"])
+                )
+            else:
+                self._conn.execute(
+                    "INSERT INTO fix_patterns (error_sig, error_text, fix_desc, file_type) "
+                    "VALUES (?, ?, ?, ?)",
+                    (sig, error_text[:500], fix_desc[:1000], file_type)
+                )
+            self._conn.commit()
 
     # ── Read ──────────────────────────────────────────────────────────────────
 
@@ -146,26 +149,27 @@ class FixMemory:
         """
         sig = _sig(error_text)
 
-        # Exact signature match (normalised)
-        rows = self._conn.execute(
-            "SELECT error_text, fix_desc, hits, file_type FROM fix_patterns "
-            "WHERE error_sig = ? ORDER BY hits DESC LIMIT ?",
-            (sig, limit)
-        ).fetchall()
+        with self._lock:
+            # Exact signature match (normalised)
+            rows = self._conn.execute(
+                "SELECT error_text, fix_desc, hits, file_type FROM fix_patterns "
+                "WHERE error_sig = ? ORDER BY hits DESC LIMIT ?",
+                (sig, limit)
+            ).fetchall()
 
-        if not rows:
-            # Fuzzy: look for keyword overlap in the error text (top-3 words)
-            words = [w for w in re.findall(r'\b[A-Za-z]{4,}\b', error_text[:200])
-                     if w.lower() not in {"error", "line", "file", "traceback"}][:3]
-            if words:
-                like = "%" + "%".join(words[:2]) + "%"
-                rows = self._conn.execute(
-                    "SELECT error_text, fix_desc, hits, file_type FROM fix_patterns "
-                    "WHERE error_text LIKE ? ORDER BY hits DESC LIMIT ?",
-                    (like, limit)
-                ).fetchall()
+            if not rows:
+                # Fuzzy: look for keyword overlap in the error text (top-3 words)
+                words = [w for w in re.findall(r'\b[A-Za-z]{4,}\b', error_text[:200])
+                         if w.lower() not in {"error", "line", "file", "traceback"}][:3]
+                if words:
+                    like = "%" + "%".join(words[:2]) + "%"
+                    rows = self._conn.execute(
+                        "SELECT error_text, fix_desc, hits, file_type FROM fix_patterns "
+                        "WHERE error_text LIKE ? ORDER BY hits DESC LIMIT ?",
+                        (like, limit)
+                    ).fetchall()
 
-        return [dict(r) for r in rows]
+            return [dict(r) for r in rows]
 
     def format_hints_for_prompt(self, error_text: str) -> str:
         """
