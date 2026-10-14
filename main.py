@@ -176,6 +176,8 @@ def chat_loop(agent: Agent):
             # Memory & mode
             "history":    lambda a: print(agent.history(a)),
             "memory":     lambda a: _show_memory(agent),
+            "compact":    lambda a: print(agent.compact(a)),
+            "delegate":   lambda a: print(agent.delegate(a)),
             "clear":      lambda a: agent.clear_memory(),
             "mode":       lambda a: print(agent.mode(a)),
             "model":      lambda a: _select_backend(a),

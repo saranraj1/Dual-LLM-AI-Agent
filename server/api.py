@@ -79,6 +79,8 @@ _CMD_MAP = {
     "summarize":  "summarize",
     "changelog":  "changelog",
     "history":    "history",
+    "compact":    "compact",
+    "delegate":   "delegate",
     "memory":     "memory_stats",
     "clear":      "clear_memory",
     "time":       "session_time",
@@ -628,6 +630,53 @@ async def preflight_endpoint(req: PreflightRequest):
     """Run pre-flight compiler syntax diagnostics on code content or file."""
     from tools.preflight_tools import preflight_check_file
     res = preflight_check_file(req.file_path or "snippet.py", proposed_content=req.content)
+    return res
+
+
+# ── Compactor, Delegate & ReAct API Endpoints ─────────────────────────────────
+
+class CompactRequest(BaseModel):
+    force: Optional[bool] = True
+
+class DelegateRequest(BaseModel):
+    role: str
+    task: str
+
+class ReactRunRequest(BaseModel):
+    task: str
+    max_turns: Optional[int] = 5
+
+
+@app.post("/compact")
+@app.post("/api/compact")
+async def compact_endpoint(req: Optional[CompactRequest] = None):
+    """Compact agent working memory to reduce token footprint."""
+    agent = get_agent()
+    force = req.force if req else True
+    res = agent.compact("force" if force else "")
+    return {"ok": True, "result": res}
+
+
+@app.post("/delegate")
+@app.post("/api/delegate")
+async def delegate_endpoint(req: DelegateRequest):
+    """Delegate work to an isolated subagent worker (researcher, test_runner, reviewer)."""
+    from agent.subagent_pool import run_subagent
+    agent = get_agent()
+    res = run_subagent(req.role, req.task, workspace=agent.workspace)
+    if not res.get("ok", False) and "error" in res:
+        raise HTTPException(400, res["error"])
+    return res
+
+
+@app.post("/react/run")
+@app.post("/api/react/run")
+async def react_run_endpoint(req: ReactRunRequest):
+    """Execute task via the unified ReAct tool-calling harness."""
+    from agent.react_harness import ToolRegistry, run_react_loop
+    agent = get_agent()
+    registry = ToolRegistry(workspace=agent.workspace)
+    res = run_react_loop(req.task, registry=registry, max_turns=req.max_turns or 5)
     return res
 
 

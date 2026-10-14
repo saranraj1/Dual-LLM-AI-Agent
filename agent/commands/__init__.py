@@ -65,8 +65,10 @@ from agent.commands.local import (
     cmd_time,
 )
 
-# ── Interactive QA (agent/interactive_qa.py) ──────────────────────────────────
+# ── Interactive QA, Compactor & Subagents ─────────────────────────────────────
 from agent.interactive_qa import cmd_ask_user
+from agent.compactor import cmd_compact
+from agent.subagent_pool import cmd_delegate
 
 __all__ = [
     # Core / files
@@ -74,7 +76,7 @@ __all__ = [
     # Code quality
     "cmd_review", "cmd_optimize", "cmd_refactor", "cmd_security",
     "cmd_format", "cmd_lint", "cmd_test", "cmd_fix", "cmd_todo",
-    "cmd_tdd", "cmd_blast", "cmd_ask_user",
+    "cmd_tdd", "cmd_blast", "cmd_ask_user", "cmd_compact", "cmd_delegate",
     # Project
     "cmd_docs", "cmd_git", "cmd_summarize", "cmd_changelog",
     "cmd_stats", "cmd_deps", "cmd_diagram", "cmd_scaffold",
