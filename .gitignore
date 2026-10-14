@@ -68,7 +68,8 @@ coverage.xml
 chat_history.md
 installation_log.txt
 
-# ── Compiled models ───────────────────────────────────────────────────────────
+# ── Compiled models & databases ───────────────────────────────────────────────
 *.gguf
 *.bin
 *.safetensors
+*.db

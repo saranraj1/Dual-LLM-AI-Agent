@@ -6,8 +6,12 @@
 <title>AI Agent - Engineering Console</title>
 <meta name="description" content="Autonomous coding console powered by Ollama and Groq. AST call graph, blast radius analysis, turn-level git checkpoints, and self-healing TDD." />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="/static/mermaid.min.js"></script>
+<script>
+if (typeof mermaid === 'undefined') {
+  document.write('<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"><\/script>');
+}
+</script>
 <style>
 /* Reset and Base Surfaces */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1838,33 +1842,246 @@ let activeBlastData = null;
 let _currentBackend = 'auto';
 let _agentBuf = {};
 
-// Mermaid Architecture Visualizer Initialization
-if (typeof mermaid !== 'undefined') {
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'base',
-    themeVariables: {
-      darkMode: true,
-      background: '#050505',
-      primaryColor: '#111111',
-      primaryTextColor: '#f4f4f6',
-      primaryBorderColor: 'rgba(255, 255, 255, 0.16)',
-      lineColor: '#38bdf8',
-      secondaryColor: '#181818',
-      tertiaryColor: '#0c0c0c',
-      edgeLabelBackground: '#0c0c0c',
-      nodeBorder: 'rgba(255, 255, 255, 0.2)',
-      clusterBkg: '#0c0c0c',
-      clusterBorder: 'rgba(255, 255, 255, 0.15)',
-      titleColor: '#f59e0b'
-    },
-    securityLevel: 'loose',
-    flowchart: {
-      useMaxWidth: false,
-      htmlLabels: true,
-      curve: 'basis'
+// Mermaid Architecture Visualizer Initialization & Resilient Sanitizer
+function initMermaidSafe() {
+  if (typeof mermaid !== 'undefined') {
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+          darkMode: true,
+          background: '#050505',
+          primaryColor: '#111111',
+          primaryTextColor: '#f4f4f6',
+          primaryBorderColor: 'rgba(255, 255, 255, 0.16)',
+          lineColor: '#38bdf8',
+          secondaryColor: '#181818',
+          tertiaryColor: '#0c0c0c',
+          edgeLabelBackground: '#0c0c0c',
+          nodeBorder: 'rgba(255, 255, 255, 0.2)',
+          clusterBkg: '#0c0c0c',
+          clusterBorder: 'rgba(255, 255, 255, 0.15)',
+          titleColor: '#f59e0b'
+        },
+        securityLevel: 'loose',
+        flowchart: {
+          useMaxWidth: false,
+          htmlLabels: true,
+          curve: 'basis'
+        }
+      });
+    } catch (e) {
+      console.warn('Mermaid initialization warning:', e);
+    }
+  }
+}
+initMermaidSafe();
+
+// Clean and auto-repair model-generated Mermaid syntax
+function cleanMermaidSource(src) {
+  if (!src) return '';
+  let s = src.trim();
+
+  // 1. Decode HTML entities (&gt; -> >, &lt; -> <, &amp; -> &)
+  s = s.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+
+  // 2. Remove leading/trailing code fences or 'mermaid' tags
+  s = s.replace(/^(?:mermaid\s*\n+|```mermaid\s*\n*|```\s*\n*)/i, '');
+  s = s.replace(/\n*```\s*$/i, '');
+  s = s.trim();
+
+  // 3. Remove trailing semicolons on lines
+  s = s.replace(/;\s*$/gm, '');
+
+  // 4. Ensure diagram header exists
+  const knownHeaders = /^(?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|gitGraph|mindmap|quadrantChart|xychart-beta|timeline|zenuml|sankey-beta|C4Context)/im;
+  if (!knownHeaders.test(s)) {
+    s = 'flowchart TD\n' + s;
+  }
+
+  // 5. Clean edge labels with quotes: -->|"text"| -> -->|text|
+  s = s.replace(/(-->|--|\.\->|==>)\s*\|"([^"]+)"\|/g, '$1|$2|');
+
+  // 6. Strip bold/italic markdown inside labels: [**text**] -> ["text"]
+  s = s.replace(/\[\*\*(.+?)\*\*\]/g, '["$1"]');
+  s = s.replace(/\{\*\*(.+?)\*\*\}/g, '{"$1"}');
+  s = s.replace(/\(\*\*(.+?)\*\*\)/g, '("$1")');
+
+  // 7. Quote unquoted node labels with special chars: A[User / Admin] -> A["User / Admin"]
+  s = s.replace(/([a-zA-Z0-9_\-]+)\[(?!")([^\n\]]+?)\]/g, (m, id, text) => {
+    const clean = text.replace(/"/g, "'");
+    return id + '["' + clean + '"]';
+  });
+  s = s.replace(/([a-zA-Z0-9_\-]+)\{(?!")([^\n\}]+?)\}/g, (m, id, text) => {
+    const clean = text.replace(/"/g, "'");
+    return id + '{"' + clean + '"}';
+  });
+  s = s.replace(/([a-zA-Z0-9_\-]+)\((?!")([^\n\)]+?)\)/g, (m, id, text) => {
+    if (text.startsWith('(') || text.endsWith(')')) return m;
+    const clean = text.replace(/"/g, "'");
+    return id + '("' + clean + '")';
+  });
+
+  return s;
+}
+
+// Aggressive line-by-line recovery for corrupted diagrams
+function ultraCleanMermaid(src) {
+  const lines = src.split('\n');
+  const out = ['flowchart TD'];
+  for (let l of lines) {
+    l = l.trim();
+    if (!l || /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram)/i.test(l)) continue;
+    const m = l.match(/([a-zA-Z0-9_\-]+)\s*(?:\[[^\]]*\])?\s*(-->|--|==>)\s*(?:\|([^|]*)\|)?\s*([a-zA-Z0-9_\-]+)\s*(?:\[[^\]]*\])?/);
+    if (m) {
+      const from = m[1];
+      const to = m[4];
+      const lbl = m[3] ? `|${m[3].replace(/["']/g, '')}|` : '';
+      out.push(`  ${from} -->${lbl} ${to}`);
+    }
+  }
+  return out.length > 1 ? out.join('\n') : 'flowchart TD\n  Start["Start"] --> Done["Complete"]';
+}
+
+// Zero-Failure Native SVG Diagram Visualizer
+function renderNativeSVGDiagram(src, diagId = 'diag-' + Math.random().toString(36).substring(2, 9)) {
+  const lines = src.split('\n');
+  const nodes = new Map();
+  const edges = [];
+
+  function parseNode(token) {
+    if (!token) return null;
+    token = token.trim();
+    const m = token.match(/^([a-zA-Z0-9_\-]+)\s*(?:(\[\"?[^\"\]]+\"?\]|\{\"?([^\"\}]+)\"?\}|\(\"?([^\"\)]+)\"?\)))?/);
+    if (!m) return null;
+    const id = m[1];
+    let label = id;
+    let shape = 'rect';
+    if (m[2]) {
+      label = m[2].slice(1, -1).replace(/^\"|\"$/g, '').trim();
+      if (m[2].startsWith('{')) shape = 'rhombus';
+      else if (m[2].startsWith('(')) shape = 'round';
+    }
+    return { id, label, shape };
+  }
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line || line.startsWith('%%') || /^(flowchart|graph|sequenceDiagram|classDiagram)/i.test(line)) continue;
+    const arrowMatch = line.match(/^(.+?)\s*(?:-->|---|==>|-\.->)\s*(?:\|([^|]+)\|)?\s*(.+)$/);
+    if (arrowMatch) {
+      const fromNode = parseNode(arrowMatch[1]);
+      const edgeLabel = arrowMatch[2] ? arrowMatch[2].trim() : '';
+      const toNode = parseNode(arrowMatch[3]);
+
+      if (fromNode && toNode) {
+        if (!nodes.has(fromNode.id)) nodes.set(fromNode.id, fromNode);
+        if (!nodes.has(toNode.id)) nodes.set(toNode.id, toNode);
+        edges.push({ from: fromNode.id, to: toNode.id, label: edgeLabel });
+      }
+    } else {
+      const single = parseNode(line);
+      if (single && !nodes.has(single.id)) {
+        nodes.set(single.id, single);
+      }
+    }
+  }
+
+  if (nodes.size === 0) {
+    return `<div class="diagram-plain-preview"><pre><code class="language-mermaid">${escapeHTML(src)}</code></pre></div>`;
+  }
+
+  const levels = new Map();
+  nodes.forEach((_, id) => levels.set(id, 0));
+  edges.forEach(e => {
+    const fromLvl = levels.get(e.from) || 0;
+    const toLvl = levels.get(e.to) || 0;
+    levels.set(e.to, Math.max(toLvl, fromLvl + 1));
+  });
+
+  const rankMap = new Map();
+  levels.forEach((lvl, id) => {
+    if (!rankMap.has(lvl)) rankMap.set(lvl, []);
+    rankMap.get(lvl).push(id);
+  });
+
+  const nodeW = 180;
+  const nodeH = 44;
+  const gapX = 36;
+  const gapY = 56;
+  const pad = 36;
+
+  let maxW = 0;
+  const maxLevel = Math.max(...Array.from(rankMap.keys()));
+
+  rankMap.forEach((ids) => {
+    const levelWidth = ids.length * nodeW + (ids.length - 1) * gapX;
+    maxW = Math.max(maxW, levelWidth);
+  });
+
+  const totalW = Math.max(maxW + pad * 2, 420);
+  const totalH = (maxLevel + 1) * nodeH + maxLevel * gapY + pad * 2;
+  const positions = new Map();
+
+  rankMap.forEach((ids, lvl) => {
+    const levelWidth = ids.length * nodeW + (ids.length - 1) * gapX;
+    const startX = (totalW - levelWidth) / 2;
+    const y = pad + lvl * (nodeH + gapY);
+
+    ids.forEach((id, idx) => {
+      const x = startX + idx * (nodeW + gapX);
+      positions.set(id, { x, y, cx: x + nodeW / 2, cy: y + nodeH / 2 });
+    });
+  });
+
+  const arrowMarkerId = `arrow-${diagId}`;
+  let svg = `<svg viewBox="0 0 ${totalW} ${totalH}" style="max-width: 100%; height: auto; font-family: ui-monospace, monospace; display: block; margin: 0 auto;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="${arrowMarkerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+      </marker>
+    </defs>`;
+
+  edges.forEach(e => {
+    const p1 = positions.get(e.from);
+    const p2 = positions.get(e.to);
+    if (!p1 || !p2) return;
+
+    const startX = p1.cx;
+    const startY = p1.y + nodeH;
+    const endX = p2.cx;
+    const endY = p2.y;
+    const midY = (startY + endY) / 2;
+
+    svg += `<path d="M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}" stroke="#38bdf8" stroke-width="1.8" fill="none" marker-end="url(#${arrowMarkerId})" />`;
+
+    if (e.label) {
+      const lx = (startX + endX) / 2;
+      const ly = midY;
+      svg += `<rect x="${lx - 32}" y="${ly - 9}" width="64" height="18" rx="3" fill="#0c0c0c" stroke="rgba(255,255,255,0.12)" />`;
+      svg += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" fill="#8e8e93" font-size="10">${escapeHTML(e.label)}</text>`;
     }
   });
+
+  nodes.forEach((n, id) => {
+    const pos = positions.get(id);
+    if (!pos) return;
+
+    const isDiamond = n.shape === 'rhombus';
+    const strokeColor = isDiamond ? '#f59e0b' : 'rgba(56, 189, 248, 0.45)';
+    const rx = n.shape === 'round' ? '22' : '6';
+
+    svg += `<g class="native-diagram-node">
+      <rect x="${pos.x}" y="${pos.y}" width="${nodeW}" height="${nodeH}" rx="${rx}" fill="#111111" stroke="${strokeColor}" stroke-width="1.5" />
+      <text x="${pos.cx}" y="${pos.cy}" text-anchor="middle" dominant-baseline="central" fill="#f4f4f6" font-size="11" font-weight="500">
+        ${escapeHTML(n.label.length > 24 ? n.label.slice(0, 22) + '...' : n.label)}
+      </text>
+    </g>`;
+  });
+
+  svg += `</svg>`;
+  return svg;
 }
 
 // Smart Auto-Scroll Manager
@@ -1922,7 +2139,12 @@ function switchDiagramView(diagId, tab) {
   });
 
   if (tab === 'visual') {
-    if (visualPane) visualPane.style.display = 'flex';
+    if (visualPane) {
+      visualPane.style.display = 'flex';
+      if (visualPane.dataset.rendered !== 'true') {
+        renderAllDiagramsInContainer(deck);
+      }
+    }
     if (sourcePane) sourcePane.style.display = 'none';
     if (zoomControls) zoomControls.style.display = 'flex';
   } else {
@@ -1991,7 +2213,10 @@ function copyAsciiCode(asciiId) {
 }
 
 async function renderAllDiagramsInContainer(container) {
-  if (!container || typeof mermaid === 'undefined') return;
+  if (!container) return;
+
+  initMermaidSafe();
+
   const visualPanes = container.querySelectorAll('.diagram-visual-pane[data-mermaid-src]');
   for (const pane of visualPanes) {
     if (pane.dataset.rendered === 'true') continue;
@@ -1999,24 +2224,60 @@ async function renderAllDiagramsInContainer(container) {
     const canvas = pane.querySelector('.diagram-canvas');
     if (!canvas || !rawSrc) continue;
 
-    try {
+    const diagId = pane.id.replace(/-visual$/, '');
+    const cleaned = cleanMermaidSource(rawSrc);
+
+    let renderedOk = false;
+    if (typeof mermaid !== 'undefined') {
       const renderId = 'mermaid-' + Math.random().toString(36).substring(2, 10);
-      const res = await mermaid.render(renderId, rawSrc);
-      canvas.innerHTML = res.svg;
-      pane.dataset.rendered = 'true';
-      if (res.bindFunctions) {
-        res.bindFunctions(canvas);
+      try {
+        const res = await mermaid.render(renderId, cleaned);
+        canvas.innerHTML = res.svg;
+        pane.dataset.rendered = 'true';
+        if (res.bindFunctions) {
+          res.bindFunctions(canvas);
+        }
+        renderedOk = true;
+      } catch (err) {
+        console.warn('Primary Mermaid render failed, attempting recovery:', err);
+        try {
+          const stray = document.querySelectorAll(`[id*="${renderId}"]`);
+          stray.forEach(el => el.remove());
+        } catch (e) {}
+
+        try {
+          const retryClean = ultraCleanMermaid(cleaned);
+          const retryId = 'mermaid-' + Math.random().toString(36).substring(2, 10);
+          const retryRes = await mermaid.render(retryId, retryClean);
+          canvas.innerHTML = retryRes.svg;
+          pane.dataset.rendered = 'true';
+          renderedOk = true;
+        } catch (retryErr) {
+          console.warn('Secondary Mermaid render failed:', retryErr);
+          try {
+            const stray2 = document.querySelectorAll(`[id*="mermaid-"]`);
+            stray2.forEach(el => {
+              if (el.tagName === 'DIV' && el.style.position === 'absolute' && el.parentNode === document.body) {
+                el.remove();
+              }
+            });
+          } catch (e) {}
+        }
       }
-    } catch (err) {
-      console.warn('Mermaid render error:', err);
-      canvas.innerHTML = `
-        <div class="diagram-fallback-note">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          <span>Visual render fallback</span>
-        </div>
-        <pre><code class="language-mermaid">${escapeHTML(rawSrc)}</code></pre>
-      `;
-      pane.dataset.rendered = 'fallback';
+    }
+
+    if (!renderedOk) {
+      canvas.innerHTML = renderNativeSVGDiagram(rawSrc, diagId);
+      pane.dataset.rendered = 'true';
+      const deck = document.getElementById(diagId);
+      if (deck) {
+        const badge = deck.querySelector('.diagram-badge');
+        if (badge) {
+          badge.textContent = 'GRAPH (VECTOR)';
+          badge.style.backgroundColor = 'rgba(245, 158, 11, 0.15)';
+          badge.style.color = '#f59e0b';
+        }
+      }
     }
   }
 }
@@ -2564,6 +2825,9 @@ function appendToken(id, token) {
   const body = document.getElementById(`${id}-body`);
   if (body) {
     body.innerHTML = renderMarkdown(_agentBuf[id]) + '<span class="cursor">&block;</span>';
+    if (body.querySelector('.diagram-visual-pane:not([data-rendered="true"])')) {
+      renderAllDiagramsInContainer(body);
+    }
     smartScrollToBottom(false);
   }
 }
@@ -2683,14 +2947,13 @@ function renderMarkdown(text) {
 
   let processed = text;
   // Pre-process: detect unfenced Mermaid diagrams
-  if (!processed.includes('```mermaid')) {
-    processed = processed.replace(
-      /(^|\n\n)((?:graph|flowchart)\s+(?:TD|TB|BT|RL|LR)|sequenceDiagram|classDiagram|stateDiagram-v2|stateDiagram|erDiagram)[\s\S]*?(?=\n\n[^\s]|```|$)/g,
-      (match, lead) => {
-        return `${lead}\`\`\`mermaid\n${match.slice(lead.length).trim()}\n\`\`\``;
-      }
-    );
-  }
+  processed = processed.replace(
+    /(?:^|\n)((?:graph|flowchart)\s+(?:TD|TB|BT|RL|LR|TD;|LR;)|sequenceDiagram|classDiagram|stateDiagram-v2|stateDiagram|erDiagram)[\s\S]*?(?=\n\n[^\s]|```|$)/g,
+    (match) => {
+      if (match.includes('```')) return match;
+      return `\n\n\`\`\`mermaid\n${match.trim()}\n\`\`\`\n\n`;
+    }
+  );
 
   const _blocks = [];
   let html = processed.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, (_, lang, rawCode) => {
@@ -2699,7 +2962,7 @@ function renderMarkdown(text) {
     const idx = _blocks.length;
 
     const isExplicitMermaid = l === 'mermaid';
-    const isMermaidSyntax = !l && /^(graph\s+(?:TD|TB|BT|RL|LR)|flowchart\s+(?:TD|TB|BT|RL|LR)|sequenceDiagram|classDiagram|stateDiagram|erDiagram)/.test(code);
+    const isMermaidSyntax = /^(?:graph\s+|flowchart\s+|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|gitGraph|mindmap)/i.test(code);
 
     if (isExplicitMermaid || isMermaidSyntax) {
       const diagId = 'diag-' + Math.random().toString(36).substring(2, 9);
