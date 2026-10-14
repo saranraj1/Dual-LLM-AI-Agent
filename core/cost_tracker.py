@@ -28,6 +28,7 @@ GROQ_PRICING: Dict[str, Dict[str, float]] = {
     "llama-3.2-3b-preview":    {"input": 0.06, "output": 0.06},
     "mixtral-8x7b-32768":      {"input": 0.24, "output": 0.24},
     "gemma2-9b-it":            {"input": 0.20, "output": 0.20},
+    "qwen/qwen3.8-27b":        {"input": 0.20, "output": 0.20},
     "default":                 {"input": 0.59, "output": 0.79},  # safe fallback
 }
 

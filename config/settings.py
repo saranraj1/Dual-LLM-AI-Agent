@@ -17,7 +17,7 @@ try:
     from dotenv import load_dotenv
     # Walk up from this file's directory to find .env in the project root
     _root = Path(__file__).parent.parent
-    load_dotenv(_root / ".env", override=False)
+    load_dotenv(_root / ".env", override=True)
 except ImportError:
     pass  # python-dotenv not installed — fall back to os.environ or hardcoded values
 
@@ -30,7 +30,7 @@ MAX_TOKENS      = int(os.getenv("MAX_TOKENS", "2048"))       # allows complete f
 # ── Groq API (cloud, free tier — 300+ tok/s) ─────────────────────────────────
 # Key is read from .env file — NEVER hardcode it here
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL      = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")   # SOTA coding model on Groq
+GROQ_MODEL      = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")   # Qwen 3.8 27B on Groq
 GROQ_HOST       = "https://api.groq.com/openai/v1"
 GROQ_MAX_TOKENS = int(os.getenv("GROQ_MAX_TOKENS", "4096"))
 AUTO_FALLBACK   = True                # auto-switch to Groq if Ollama fails/OOM
