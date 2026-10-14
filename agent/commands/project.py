@@ -429,13 +429,14 @@ def cmd_diagram(agent, args: str) -> str:
     prompt = f"""Generate two things:
 
 1. An ASCII architecture diagram showing how the main components connect
-   (use arrows → to show data/call flow)
+   (use arrows → to show data/call flow). Always enclose it in a ```text code block.
 
-2. A Mermaid diagram (graph TD format) of the same architecture
+2. A Mermaid diagram (graph TD format) of the same architecture. Always enclose it in a ```mermaid code block.
    Save it as FILE: docs/architecture.md
 
 CRITICAL: Do NOT emit <tool_call> tags. All project structure and dependencies are already provided below.
 Output the complete ASCII diagram and Mermaid diagram directly and immediately.
+Enclose the ASCII diagram inside a ```text ... ``` block and the Mermaid diagram inside a ```mermaid ... ``` block.
 
 The file must include:
 - The AI-generated ASCII diagram

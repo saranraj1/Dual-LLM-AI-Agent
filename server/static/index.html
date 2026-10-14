@@ -7,6 +7,7 @@
 <meta name="description" content="Autonomous coding console powered by Ollama and Groq. AST call graph, blast radius analysis, turn-level git checkpoints, and self-healing TDD." />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <style>
 /* Reset and Base Surfaces */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -63,10 +64,10 @@ pre, code, kbd, samp {
 }
 
 /* Scrollbars */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
 
 /* Root Grid Architecture */
 [data-ui] .app-root {
@@ -379,11 +380,14 @@ pre, code, kbd, samp {
 [data-ui] .chat-area {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 20px 24px;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  padding: 24px 24px 140px 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
 }
 
 /* Welcome Console Banner */
@@ -458,7 +462,7 @@ pre, code, kbd, samp {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
   max-width: 840px;
   width: 100%;
   margin: 0 auto;
@@ -641,6 +645,307 @@ pre, code, kbd, samp {
   background-color: var(--bg-subtle);
   color: var(--text-secondary);
   font-weight: 600;
+}
+
+/* Floating Jump to Latest Button */
+[data-ui] .scroll-bottom-btn {
+  position: absolute;
+  bottom: 86px;
+  right: 28px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.12s ease;
+}
+
+[data-ui] .scroll-bottom-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+[data-ui] .scroll-bottom-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--signal-amber);
+  color: var(--signal-amber);
+}
+
+/* Diagram Deck Component (Mermaid Architecture Visualizer) */
+[data-ui] .diagram-deck {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  margin: 12px 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-ui] .diagram-header {
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+[data-ui] .diagram-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-ui] .diagram-title svg {
+  color: var(--signal-sky);
+  flex-shrink: 0;
+}
+
+[data-ui] .diagram-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.06em;
+  background-color: var(--signal-sky-bg);
+  color: var(--signal-sky);
+}
+
+[data-ui] .diagram-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-ui] .diagram-tabs {
+  display: flex;
+  background-color: var(--bg-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+[data-ui] .diagram-tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+[data-ui] .diagram-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+[data-ui] .diagram-tab-btn.active {
+  background-color: var(--bg-card);
+  color: var(--signal-amber);
+  font-weight: 600;
+}
+
+[data-ui] .diagram-zoom-controls {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 1px;
+}
+
+[data-ui] .diagram-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+[data-ui] .diagram-icon-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+[data-ui] .diagram-icon-btn.zoom-indicator {
+  min-width: 38px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+[data-ui] .diagram-copy-btn {
+  background-color: var(--bg-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+[data-ui] .diagram-copy-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+[data-ui] .diagram-body {
+  position: relative;
+  min-height: 180px;
+  background-color: var(--bg-black);
+  overflow: hidden;
+}
+
+[data-ui] .diagram-visual-pane {
+  padding: 20px;
+  overflow: auto;
+  max-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #050505;
+}
+
+[data-ui] .diagram-canvas {
+  transition: transform 0.15s ease-out;
+  transform-origin: center center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+[data-ui] .diagram-canvas svg {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto;
+}
+
+[data-ui] .diagram-loading {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-ui] .diagram-fallback-note {
+  font-size: 11px;
+  color: var(--signal-amber);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-ui] .diagram-source-pane {
+  padding: 10px 12px;
+  background-color: var(--bg-black);
+}
+
+[data-ui] .diagram-source-pane pre {
+  margin: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+/* ASCII System Blueprint Component */
+[data-ui] .ascii-blueprint-deck {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  margin: 12px 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-ui] .ascii-header {
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-ui] .ascii-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-ui] .ascii-title svg {
+  color: var(--signal-amber);
+}
+
+[data-ui] .ascii-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.06em;
+  background-color: var(--signal-amber-bg);
+  color: var(--signal-amber);
+}
+
+[data-ui] .ascii-scroll-body {
+  overflow-x: auto;
+  padding: 14px 16px;
+  background-color: #040404;
+}
+
+[data-ui] pre.ascii-content {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  white-space: pre !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  color: #7dd3fc !important;
+}
+
+[data-ui] .ascii-content code {
+  color: inherit !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
 
 /* Interactive QA Card */
@@ -1354,6 +1659,12 @@ pre, code, kbd, samp {
       </div>
     </div>
 
+    <!-- Floating Jump to Latest Button -->
+    <button class="scroll-bottom-btn" id="scroll-bottom-btn" onclick="jumpToBottom()" title="Jump to latest output">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+      <span>Jump to latest</span>
+    </button>
+
     <!-- Input Console Fixed at Bottom -->
     <footer class="input-deck">
       <div class="input-box">
@@ -1526,6 +1837,189 @@ let globalGraphData = null;
 let activeBlastData = null;
 let _currentBackend = 'auto';
 let _agentBuf = {};
+
+// Mermaid Architecture Visualizer Initialization
+if (typeof mermaid !== 'undefined') {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    themeVariables: {
+      darkMode: true,
+      background: '#050505',
+      primaryColor: '#111111',
+      primaryTextColor: '#f4f4f6',
+      primaryBorderColor: 'rgba(255, 255, 255, 0.16)',
+      lineColor: '#38bdf8',
+      secondaryColor: '#181818',
+      tertiaryColor: '#0c0c0c',
+      edgeLabelBackground: '#0c0c0c',
+      nodeBorder: 'rgba(255, 255, 255, 0.2)',
+      clusterBkg: '#0c0c0c',
+      clusterBorder: 'rgba(255, 255, 255, 0.15)',
+      titleColor: '#f59e0b'
+    },
+    securityLevel: 'loose',
+    flowchart: {
+      useMaxWidth: false,
+      htmlLabels: true,
+      curve: 'basis'
+    }
+  });
+}
+
+// Smart Auto-Scroll Manager
+let _autoScrollEnabled = true;
+
+function setupScrollListener() {
+  const area = document.getElementById('chat-area');
+  const scrollBtn = document.getElementById('scroll-bottom-btn');
+  if (!area) return;
+
+  area.addEventListener('scroll', () => {
+    const distFromBottom = area.scrollHeight - area.scrollTop - area.clientHeight;
+    _autoScrollEnabled = (distFromBottom < 70);
+    if (scrollBtn) {
+      if (!_autoScrollEnabled) {
+        scrollBtn.classList.add('visible');
+      } else {
+        scrollBtn.classList.remove('visible');
+      }
+    }
+  }, { passive: true });
+}
+
+function smartScrollToBottom(force = false) {
+  const area = document.getElementById('chat-area');
+  if (!area) return;
+  if (force || _autoScrollEnabled) {
+    area.scrollTop = area.scrollHeight;
+  }
+}
+
+function jumpToBottom() {
+  _autoScrollEnabled = true;
+  const area = document.getElementById('chat-area');
+  if (area) {
+    area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+  }
+  const scrollBtn = document.getElementById('scroll-bottom-btn');
+  if (scrollBtn) scrollBtn.classList.remove('visible');
+}
+
+// Diagram View & Zoom Controls
+const _diagramZoomState = {};
+
+function switchDiagramView(diagId, tab) {
+  const visualPane = document.getElementById(`${diagId}-visual`);
+  const sourcePane = document.getElementById(`${diagId}-source`);
+  const zoomControls = document.getElementById(`${diagId}-zoom-controls`);
+  const deck = document.getElementById(diagId);
+  if (!deck) return;
+
+  const tabs = deck.querySelectorAll('.diagram-tab-btn');
+  tabs.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+
+  if (tab === 'visual') {
+    if (visualPane) visualPane.style.display = 'flex';
+    if (sourcePane) sourcePane.style.display = 'none';
+    if (zoomControls) zoomControls.style.display = 'flex';
+  } else {
+    if (visualPane) visualPane.style.display = 'none';
+    if (sourcePane) sourcePane.style.display = 'block';
+    if (zoomControls) zoomControls.style.display = 'none';
+  }
+}
+
+function zoomDiagram(diagId, delta) {
+  const canvas = document.getElementById(`${diagId}-canvas`);
+  const valLabel = document.getElementById(`${diagId}-zoom-val`);
+  if (!canvas) return;
+
+  let current = _diagramZoomState[diagId] || 1.0;
+  current = Math.min(Math.max(current + delta, 0.4), 2.5);
+  _diagramZoomState[diagId] = current;
+
+  canvas.style.transform = `scale(${current})`;
+  if (valLabel) {
+    valLabel.textContent = `${Math.round(current * 100)}%`;
+  }
+}
+
+function resetDiagramZoom(diagId) {
+  const canvas = document.getElementById(`${diagId}-canvas`);
+  const valLabel = document.getElementById(`${diagId}-zoom-val`);
+  if (!canvas) return;
+
+  _diagramZoomState[diagId] = 1.0;
+  canvas.style.transform = 'scale(1)';
+  if (valLabel) {
+    valLabel.textContent = '100%';
+  }
+}
+
+function copyDiagramCode(diagId) {
+  const visualPane = document.getElementById(`${diagId}-visual`);
+  const deck = document.getElementById(diagId);
+  if (!visualPane || !deck) return;
+
+  const rawSrc = decodeURIComponent(visualPane.getAttribute('data-mermaid-src') || '');
+  navigator.clipboard.writeText(rawSrc).then(() => {
+    const copyBtn = deck.querySelector('.diagram-copy-btn');
+    if (copyBtn) {
+      const orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = `<span>Copied</span>`;
+      setTimeout(() => { copyBtn.innerHTML = orig; }, 1600);
+    }
+  });
+}
+
+function copyAsciiCode(asciiId) {
+  const codeEl = document.getElementById(`${asciiId}-raw`);
+  const deck = document.getElementById(asciiId);
+  if (!codeEl || !deck) return;
+
+  navigator.clipboard.writeText(codeEl.textContent).then(() => {
+    const copyBtn = deck.querySelector('.diagram-copy-btn');
+    if (copyBtn) {
+      const orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = `<span>Copied</span>`;
+      setTimeout(() => { copyBtn.innerHTML = orig; }, 1600);
+    }
+  });
+}
+
+async function renderAllDiagramsInContainer(container) {
+  if (!container || typeof mermaid === 'undefined') return;
+  const visualPanes = container.querySelectorAll('.diagram-visual-pane[data-mermaid-src]');
+  for (const pane of visualPanes) {
+    if (pane.dataset.rendered === 'true') continue;
+    const rawSrc = decodeURIComponent(pane.getAttribute('data-mermaid-src') || '');
+    const canvas = pane.querySelector('.diagram-canvas');
+    if (!canvas || !rawSrc) continue;
+
+    try {
+      const renderId = 'mermaid-' + Math.random().toString(36).substring(2, 10);
+      const res = await mermaid.render(renderId, rawSrc);
+      canvas.innerHTML = res.svg;
+      pane.dataset.rendered = 'true';
+      if (res.bindFunctions) {
+        res.bindFunctions(canvas);
+      }
+    } catch (err) {
+      console.warn('Mermaid render error:', err);
+      canvas.innerHTML = `
+        <div class="diagram-fallback-note">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <span>Visual render fallback</span>
+        </div>
+        <pre><code class="language-mermaid">${escapeHTML(rawSrc)}</code></pre>
+      `;
+      pane.dataset.rendered = 'fallback';
+    }
+  }
+}
 
 // Mode Switching
 function setMode(mode) {
@@ -2033,7 +2527,10 @@ function appendMessage(role, text) {
     `;
   }
   area.appendChild(card);
-  area.scrollTop = area.scrollHeight;
+  if (role !== 'user') {
+    decorateTurnCard(card);
+  }
+  smartScrollToBottom(role === 'user');
   return card;
 }
 
@@ -2056,7 +2553,7 @@ function appendAgentMessage() {
   `;
   area.appendChild(card);
   _agentBuf[id] = '';
-  area.scrollTop = area.scrollHeight;
+  smartScrollToBottom(true);
   return id;
 }
 
@@ -2067,18 +2564,17 @@ function appendToken(id, token) {
   const body = document.getElementById(`${id}-body`);
   if (body) {
     body.innerHTML = renderMarkdown(_agentBuf[id]) + '<span class="cursor">&block;</span>';
-    document.getElementById('chat-area').scrollTop = 99999;
+    smartScrollToBottom(false);
   }
 }
 
-function finaliseMessage(id) {
-  if (!Object.prototype.hasOwnProperty.call(_agentBuf, id)) return;
-  const body = document.getElementById(`${id}-body`);
-  if (body) {
-    body.innerHTML = renderMarkdown(_agentBuf[id] || '');
-    body.querySelectorAll('pre code').forEach(el => {
-      hljs.highlightElement(el);
-      const pre = el.parentElement;
+function decorateTurnCard(container) {
+  if (!container) return;
+  container.querySelectorAll('pre code').forEach(el => {
+    if (el.closest('.diagram-deck') || el.closest('.ascii-blueprint-deck')) return;
+    hljs.highlightElement(el);
+    const pre = el.parentElement;
+    if (!pre.querySelector('.copy-btn')) {
       const btn = document.createElement('button');
       btn.className = 'copy-btn';
       btn.textContent = 'Copy';
@@ -2089,10 +2585,19 @@ function finaliseMessage(id) {
       };
       pre.style.position = 'relative';
       pre.appendChild(btn);
-    });
+    }
+  });
+  renderAllDiagramsInContainer(container);
+}
 
+function finaliseMessage(id) {
+  if (!Object.prototype.hasOwnProperty.call(_agentBuf, id)) return;
+  const body = document.getElementById(`${id}-body`);
+  if (body) {
+    body.innerHTML = renderMarkdown(_agentBuf[id] || '');
+    decorateTurnCard(body);
     parseQAFromText(_agentBuf[id], body);
-    document.getElementById('chat-area').scrollTop = 99999;
+    smartScrollToBottom(false);
   }
   delete _agentBuf[id];
 }
@@ -2151,7 +2656,7 @@ function appendTyping() {
     </div>
   `;
   area.appendChild(card);
-  area.scrollTop = area.scrollHeight;
+  smartScrollToBottom(false);
   return id;
 }
 
@@ -2172,15 +2677,99 @@ function clearChat() {
   _agentBuf = {};
 }
 
-// Markdown Parser
+// Markdown Parser with Diagram Beautification
 function renderMarkdown(text) {
   if (!text) return '';
 
+  let processed = text;
+  // Pre-process: detect unfenced Mermaid diagrams
+  if (!processed.includes('```mermaid')) {
+    processed = processed.replace(
+      /(^|\n\n)((?:graph|flowchart)\s+(?:TD|TB|BT|RL|LR)|sequenceDiagram|classDiagram|stateDiagram-v2|stateDiagram|erDiagram)[\s\S]*?(?=\n\n[^\s]|```|$)/g,
+      (match, lead) => {
+        return `${lead}\`\`\`mermaid\n${match.slice(lead.length).trim()}\n\`\`\``;
+      }
+    );
+  }
+
   const _blocks = [];
-  let html = text.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, (_, lang, code) => {
+  let html = processed.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, (_, lang, rawCode) => {
+    const code = rawCode.trim();
+    const l = (lang || '').toLowerCase();
     const idx = _blocks.length;
+
+    const isExplicitMermaid = l === 'mermaid';
+    const isMermaidSyntax = !l && /^(graph\s+(?:TD|TB|BT|RL|LR)|flowchart\s+(?:TD|TB|BT|RL|LR)|sequenceDiagram|classDiagram|stateDiagram|erDiagram)/.test(code);
+
+    if (isExplicitMermaid || isMermaidSyntax) {
+      const diagId = 'diag-' + Math.random().toString(36).substring(2, 9);
+      _blocks.push(`
+        <div class="diagram-deck" id="${diagId}" data-ui>
+          <div class="diagram-header">
+            <div class="diagram-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+              <span>Architecture Graph</span>
+              <span class="diagram-badge">MERMAID</span>
+            </div>
+            <div class="diagram-actions">
+              <div class="diagram-tabs">
+                <button type="button" class="diagram-tab-btn active" data-tab="visual" onclick="switchDiagramView('${diagId}', 'visual')">Visual</button>
+                <button type="button" class="diagram-tab-btn" data-tab="source" onclick="switchDiagramView('${diagId}', 'source')">Source</button>
+              </div>
+              <div class="diagram-zoom-controls" id="${diagId}-zoom-controls">
+                <button type="button" class="diagram-icon-btn" onclick="zoomDiagram('${diagId}', -0.15)" title="Zoom Out">&minus;</button>
+                <button type="button" class="diagram-icon-btn zoom-indicator" id="${diagId}-zoom-val" onclick="resetDiagramZoom('${diagId}')" title="Reset Zoom">100%</button>
+                <button type="button" class="diagram-icon-btn" onclick="zoomDiagram('${diagId}', 0.15)" title="Zoom In">&plus;</button>
+              </div>
+              <button type="button" class="diagram-copy-btn" onclick="copyDiagramCode('${diagId}')" title="Copy Diagram Source">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>Copy</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-body">
+            <div class="diagram-visual-pane" id="${diagId}-visual" data-mermaid-src="${encodeURIComponent(code)}">
+              <div class="diagram-canvas" id="${diagId}-canvas">
+                <div class="diagram-loading">Rendering architecture graph...</div>
+              </div>
+            </div>
+            <div class="diagram-source-pane" id="${diagId}-source" style="display: none;">
+              <pre><code class="language-mermaid">${escapeHTML(code)}</code></pre>
+            </div>
+          </div>
+        </div>
+      `);
+      return `\x00BLOCK${idx}\x00`;
+    }
+
+    const isAsciiBox = (l === 'text' || l === 'ascii' || l === 'plain' || l === 'plaintext' || !l) &&
+      (/[┌─┐│└┘├┤┬┴┼━┃╭╮╰╯]/.test(code) || /\+[-=]{3,}\+/.test(code) || (/\|.+?\|/.test(code) && /[-=]{3,}/.test(code)));
+
+    if (isAsciiBox) {
+      const asciiId = 'ascii-' + Math.random().toString(36).substring(2, 9);
+      _blocks.push(`
+        <div class="ascii-blueprint-deck" id="${asciiId}" data-ui>
+          <div class="ascii-header">
+            <div class="ascii-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              <span>ASCII Architecture Blueprint</span>
+              <span class="ascii-badge">MONOSPACE</span>
+            </div>
+            <button type="button" class="diagram-copy-btn" onclick="copyAsciiCode('${asciiId}')" title="Copy ASCII Blueprint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <div class="ascii-scroll-body">
+            <pre class="ascii-content"><code id="${asciiId}-raw">${escapeHTML(code)}</code></pre>
+          </div>
+        </div>
+      `);
+      return `\x00BLOCK${idx}\x00`;
+    }
+
     _blocks.push(
-      `<pre><code class="language-${lang || 'plaintext'}">${escapeHTML(code.trim())}</code></pre>`
+      `<pre><code class="language-${l || 'plaintext'}">${escapeHTML(code)}</code></pre>`
     );
     return `\x00BLOCK${idx}\x00`;
   });
@@ -2215,6 +2804,27 @@ function renderMarkdown(text) {
     p = p.trim();
     if (!p) return '';
     if (/^\x00BLOCK/.test(p) || /^<(h[1-6]|ul|ol|pre|blockquote|div|li)/.test(p)) return p;
+    if (/[┌─┐│└┘├┤┬┴┼━┃╭╮╰╯]/.test(p) || (/\+[-=]{3,}\+/.test(p) && p.includes('|'))) {
+      const asciiId = 'ascii-' + Math.random().toString(36).substring(2, 9);
+      return `
+        <div class="ascii-blueprint-deck" id="${asciiId}" data-ui>
+          <div class="ascii-header">
+            <div class="ascii-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              <span>ASCII Architecture Blueprint</span>
+              <span class="ascii-badge">MONOSPACE</span>
+            </div>
+            <button type="button" class="diagram-copy-btn" onclick="copyAsciiCode('${asciiId}')" title="Copy ASCII Blueprint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <div class="ascii-scroll-body">
+            <pre class="ascii-content"><code id="${asciiId}-raw">${escapeHTML(p)}</code></pre>
+          </div>
+        </div>
+      `;
+    }
     return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
   }).join('\n');
 
@@ -2407,7 +3017,7 @@ async function checkPendingQA() {
         </div>
       `;
       area.appendChild(card);
-      area.scrollTop = area.scrollHeight;
+      smartScrollToBottom(false);
     }
   } catch (e) {}
 }
@@ -2488,6 +3098,7 @@ function openApiDocs() { window.open('/docs', '_blank'); }
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
+  setupScrollListener();
   refreshStats();
   setInterval(refreshStats, 15000);
 
