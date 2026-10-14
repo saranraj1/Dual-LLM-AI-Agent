@@ -71,6 +71,7 @@ def _banner():
         cmd("/translate <f> <l>", "rewrite code in another language"),
         sep(),
         section("PROJECT"),
+        cmd("/build <prompt>",    "prompt-to-project autonomous builder"),
         cmd("/docs [file]",       "generate docs / README"),
         cmd("/scaffold <type>",   "create full project boilerplate"),
         cmd("/diagram",           "ASCII + Mermaid architecture diagram"),
@@ -164,6 +165,7 @@ def chat_loop(agent: Agent):
             "translate":   lambda a: print(agent.translate(a)),
 
             # Project
+            "build":      lambda a: print(agent.build(a)),
             "docs":       lambda a: agent.docs(a),
             "scaffold":   lambda a: print(agent.scaffold(a)),
             "diagram":    lambda a: agent.diagram(a),
@@ -196,7 +198,9 @@ def chat_loop(agent: Agent):
             "digest":     lambda a: agent.digest(a),
             "time":       lambda a: print(agent.session_time(a)),
 
-            # Meta
+            # Meta & TUI
+            "tui":        lambda a: _launch_tui(agent),
+            "react":      lambda a: _run_react(agent, a),
             "help":       lambda a: _banner(),
             "quit":       lambda a: sys.exit(0),
             "exit":       lambda a: sys.exit(0),
@@ -262,6 +266,25 @@ def _select_backend(args: str):
     print(ok(f"Backend switched to: {labels[choice]}"))
 
 
+def _launch_tui(agent):
+    from cli.terminal_tui import start_tui
+    start_tui(agent)
+
+
+def _run_react(agent, task: str):
+    if not task:
+        print(warn("Usage: /react <task description>"))
+        return
+    from agent.react_harness import ToolRegistry, run_react_loop
+    registry = ToolRegistry(workspace=agent.workspace)
+    res = run_react_loop(task, registry=registry)
+    if res.get("ok"):
+        print(f"\n{C.GREEN}✓ ReAct execution finished:{C.RESET}\n{res.get('answer', '')}")
+    else:
+        print(f"\n{C.RED}✗ ReAct loop stopped: {res.get('error', 'unknown error')}{C.RESET}")
+
+
+
 def main():
     parser = argparse.ArgumentParser(description="Autonomous Local AI Agent")
     parser.add_argument("--project",       type=str,          help="Path to project (default: current dir)")
@@ -279,6 +302,8 @@ def main():
     parser.add_argument("--install-hook",  action="store_true", help="Install git pre-commit hook in this project")
     parser.add_argument("--strict-hook",   action="store_true", help="Install hook in STRICT mode (blocks commits on issues)")
     parser.add_argument("--remove-hook",   action="store_true", help="Remove the git pre-commit hook")
+    parser.add_argument("--tui",           action="store_true", help="Start rich terminal TUI with live steerability")
+    parser.add_argument("--build",         type=str,          help="Autonomous prompt-to-project build")
     args = parser.parse_args()
 
     workspace = os.path.abspath(args.project or os.getcwd())
@@ -343,6 +368,14 @@ def main():
         return
     if args.qa:
         print(agent.ask_user(args.qa))
+        return
+    if args.build:
+        result = agent.build(args.build)
+        print(f"\n{C.SUCCESS}📌 Build Result:{C.RESET}\n{result}")
+        return
+    if args.tui:
+        from cli.terminal_tui import start_tui
+        start_tui(agent)
         return
 
     chat_loop(agent)

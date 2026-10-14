@@ -28,7 +28,7 @@ from agent.commands import (
     cmd_tdd, cmd_blast, cmd_ask_user, cmd_compact, cmd_delegate,
     # Project
     cmd_docs, cmd_git, cmd_summarize, cmd_changelog,
-    cmd_stats, cmd_deps, cmd_diagram, cmd_scaffold,
+    cmd_stats, cmd_deps, cmd_diagram, cmd_scaffold, cmd_build,
     # Files
     cmd_run_file, cmd_translate,
     # Web
@@ -169,6 +169,7 @@ class Agent:
     def diagram(self, args):      return cmd_diagram(self, args)
     def run_file(self, args):     return cmd_run_file(self, args)
     def scaffold(self, args):     return cmd_scaffold(self, args)
+    def build(self, args):        return cmd_build(self, args)
     def ask_url(self, args):      return cmd_ask_url(self, args)
     def mode(self, args):         return cmd_mode(self, args)
     def watch(self, args):        return cmd_watch(self, args)

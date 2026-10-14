@@ -73,6 +73,7 @@ _CMD_MAP = {
     "docs":       "docs",
     "git":        "git",
     "scaffold":   "scaffold",
+    "build":      "build",
     "diagram":    "diagram",
     "stats":      "stats",
     "deps":       "deps",
@@ -145,6 +146,10 @@ class RunRequest(BaseModel):
 
 class CommandRequest(BaseModel):
     command:   str          # e.g. "/review main.py"
+    workspace: Optional[str] = None
+
+class BuildRequest(BaseModel):
+    prompt:    str
     workspace: Optional[str] = None
 
 
@@ -713,6 +718,51 @@ async def react_stream_endpoint(req: ReactRunRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/build")
+@app.post("/api/build")
+async def build_endpoint(req: BuildRequest):
+    """Execute autonomous prompt-to-project build synchronously."""
+    from agent.project_builder import build_project
+    agent = get_agent()
+    ws = req.workspace or agent.workspace
+    report = await asyncio.get_event_loop().run_in_executor(
+        None, partial(build_project, req.prompt, workspace=ws)
+    )
+    return report
+
+
+@app.post("/build/stream")
+@app.post("/api/build/stream")
+async def build_stream_endpoint(req: BuildRequest):
+    """Execute autonomous prompt-to-project build and stream SSE events."""
+    from agent.project_builder import build_project_stream
+    agent = get_agent()
+    ws = req.workspace or agent.workspace
+
+    def _event_generator():
+        for line in build_project_stream(req.prompt, workspace=ws):
+            yield line
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/benchmark/swe")
+@app.post("/api/benchmark/swe")
+async def benchmark_swe_endpoint():
+    """Execute SWE benchmark evaluation suite."""
+    from eval.swe_benchmark import run_swe_benchmark
+    res = await asyncio.get_event_loop().run_in_executor(
+        None, run_swe_benchmark
+    )
+    return res
+
+
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────

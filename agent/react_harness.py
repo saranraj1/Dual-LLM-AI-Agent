@@ -335,6 +335,20 @@ class ToolRegistry:
             "tool_usage": {},
         }
         self._register_default_tools()
+        self._mcp_bridge = None
+        self._attach_mcp_servers()
+
+    def _attach_mcp_servers(self):
+        try:
+            from agent.mcp_client import MCPBridge
+            bridge = MCPBridge(self.workspace)
+            bridge.load_config()
+            if bridge.clients:
+                bridge.connect_all()
+                bridge.register_tools(self)
+                self._mcp_bridge = bridge
+        except Exception:
+            pass
 
     def register(
         self,

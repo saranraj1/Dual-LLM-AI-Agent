@@ -182,6 +182,31 @@ def cmd_config(agent, args: str) -> str:
 def cmd_benchmark(agent, args: str) -> str:
     from core.llm import _ollama_ask, _groq_ask, is_running, is_groq_available
 
+    target_mode = args.strip().lower()
+
+    if target_mode in ("swe", "--swe", "eval"):
+        from eval.swe_benchmark import run_swe_benchmark, format_benchmark_report
+        print("\n🚀 Executing Automated SWE Benchmark & Evaluation Suite...")
+        print("   Running standardized challenges (Algorithms, Decorators, Nested Data, Concurrency)...\n")
+        report = run_swe_benchmark()
+        output = format_benchmark_report(report)
+        print(output)
+        return output
+
+    if target_mode in ("compare", "both"):
+        from eval.swe_benchmark import run_comparative_benchmark, format_benchmark_report
+        print("\n🔬 Executing Comparative SWE Benchmark (Local vs Groq Cloud)...\n")
+        comp = run_comparative_benchmark()
+        out_lines = []
+        if comp.get("local"):
+            out_lines.append(format_benchmark_report(comp["local"]))
+        if comp.get("groq"):
+            out_lines.append(format_benchmark_report(comp["groq"]))
+        out_lines.append(f"\n⚡ Groq is {comp.get('speedup_factor', 1.0)}x faster on average.")
+        full_res = "\n".join(out_lines)
+        print(full_res)
+        return full_res
+
     prompt = "Write a Python function that checks if a number is prime. Include a docstring."
     results = []
     print("\n⏱️  Benchmarking LLM backends (this may take a minute)...\n")
@@ -233,6 +258,7 @@ def cmd_benchmark(agent, args: str) -> str:
         lines.append(f"\n  🏆 Groq is {factor:.1f}x faster than local")
 
     lines.append("\n  Tip: Use /model groq for speed, /model local for privacy")
+    lines.append("  SWE Suite: Run /benchmark swe to evaluate coding accuracy & pass rates")
     result = "\n".join(lines)
     print(result)
     return result

@@ -528,3 +528,73 @@ Create every file the project needs to run immediately after pip install -r requ
             print(r["stdout"][-300:] if r["ok"] else r["stderr"][:300])
         return f"Scaffold complete. {len(written)} files created."
     return "⚠️  No files were generated. Try being more specific in your description."
+
+
+# ── /build ────────────────────────────────────────────────────────────────────
+
+def cmd_build(agent, args: str) -> str:
+    prompt = args.strip()
+    if not prompt:
+        return (
+            "Usage: /build <project prompt>\n"
+            "Example: /build CLI URL shortener with SQLite storage and click interface\n"
+            "Executes: Spec -> Scaffolding -> Module Synthesis -> Pre-Flight AST Checks -> Self-Healing TDD"
+        )
+
+    from agent.project_builder import build_project
+    from core.ui import C, Spinner
+
+    print(f"\n{C.BOLD}{C.CYAN}🚀 Launching Autonomous Prompt-to-Project Builder (/build){C.RESET}")
+    print(f"{C.GRAY}Prompt:{C.RESET} {prompt}")
+    print(f"{C.GRAY}Target:{C.RESET} {agent.workspace}\n")
+
+    def cli_event_listener(evt):
+        name = evt.get("event")
+        data = evt.get("data", {})
+        if name == "spec_start":
+            print(f"{C.CYAN}📐 [1/5] Synthesizing architecture specification...{C.RESET}")
+        elif name == "spec_ready":
+            print(f"   {C.GREEN}✓ Specification synthesized:{C.RESET} {data.get('name')} ({len(data.get('files', []))} modules, {len(data.get('tests', []))} test suites)")
+        elif name == "scaffold_start":
+            print(f"{C.CYAN}🏗️  [2/5] Scaffolding directory tree & configs...{C.RESET}")
+        elif name == "scaffold_complete":
+            created = data.get("created", [])
+            print(f"   {C.GREEN}✓ Created infrastructure:{C.RESET} {', '.join(created)}")
+        elif name == "module_start":
+            print(f"   {C.YELLOW}⚙️  Synthesizing module:{C.RESET} {data.get('file')}...")
+        elif name == "module_complete":
+            repairs = data.get("repairs", 0)
+            repair_str = f" ({repairs} auto-repairs applied)" if repairs > 0 else ""
+            status_ico = "✓" if data.get("ok") else "✗"
+            print(f"   {C.GREEN if data.get('ok') else C.RED}{status_ico} {data.get('path')}{C.RESET}{repair_str}")
+        elif name == "test_synth_start":
+            print(f"{C.CYAN}🧪 [4/5] Synthesizing pytest suite:{C.RESET} {data.get('test_file')}...")
+        elif name == "verify_start":
+            print(f"{C.CYAN}🔬 [5/5] Executing pre-flight verification & pytest suite...{C.RESET}")
+        elif name == "heal_start":
+            print(f"   {C.YELLOW}🔄 Tests failed — initiating closed-loop self-healing...{C.RESET}")
+        elif name == "heal_complete":
+            rounds = data.get("rounds", 0)
+            status = "resolved" if data.get("ok") else "unresolved"
+            print(f"   {C.GREEN if data.get('ok') else C.RED}✓ Self-healing cycle finished ({rounds} rounds, {status}){C.RESET}")
+
+    report = build_project(prompt, workspace=agent.workspace, on_event=cli_event_listener)
+    agent._refresh_scan()
+
+    status_tag = f"{C.GREEN}BUILD SUCCESSFUL{C.RESET}" if report["ok"] else f"{C.RED}BUILD INCOMPLETE{C.RESET}"
+    summary = [
+        f"\n{C.BOLD}══════════════════════════════════════════════════════════════{C.RESET}",
+        f"  {status_tag}  •  {report['name']} ({report['duration_seconds']}s)",
+        f"{C.BOLD}══════════════════════════════════════════════════════════════{C.RESET}",
+        f"• Description   : {report['description'][:80]}...",
+        f"• Entry Point   : {report['entrypoint']}",
+        f"• Run Command   : {report['run_instructions']}",
+        f"• Modules ({len(report['modules'])}): {', '.join(report['modules'])}",
+        f"• Tests ({len(report['tests'])}):   {', '.join(report['tests'])}",
+        f"• Pytest Passed : {'YES' if report['test_passed'] else 'NO (see logs)'}",
+        f"• Heal Rounds   : {report['heal_rounds']}",
+    ]
+    res_str = "\n".join(summary)
+    print(res_str)
+    return f"Project build finished: {report['name']} ({'SUCCESS' if report['ok'] else 'FAILED'})"
+

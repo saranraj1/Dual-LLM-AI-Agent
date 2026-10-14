@@ -375,3 +375,23 @@ def rank_codebase_files(
     scan["scores"] = {}
     return scan
 
+
+def sanitize_path(path: str, workspace: str) -> Path:
+    """
+    Ensure path resolves strictly within the workspace directory.
+    Raises PermissionError if path attempts directory traversal outside workspace.
+    """
+    if not path or not path.strip():
+        return Path(workspace).resolve()
+
+    ws = Path(workspace).resolve()
+    clean_p = path.strip().strip("'\"")
+    target = (ws / clean_p).resolve()
+
+    try:
+        target.relative_to(ws)
+    except ValueError:
+        raise PermissionError(f"Access Denied: Path '{path}' escapes workspace sandbox '{ws}'.")
+    return target
+
+

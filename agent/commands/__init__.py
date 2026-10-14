@@ -30,6 +30,7 @@ from agent.commands.project import (
     cmd_deps,
     cmd_diagram,
     cmd_scaffold,
+    cmd_build,
 )
 
 # ── File commands (agent/commands/files.py) ───────────────────────────────────
@@ -79,7 +80,7 @@ __all__ = [
     "cmd_tdd", "cmd_blast", "cmd_ask_user", "cmd_compact", "cmd_delegate",
     # Project
     "cmd_docs", "cmd_git", "cmd_summarize", "cmd_changelog",
-    "cmd_stats", "cmd_deps", "cmd_diagram", "cmd_scaffold",
+    "cmd_stats", "cmd_deps", "cmd_diagram", "cmd_scaffold", "cmd_build",
     # Files
     "cmd_run_file", "cmd_translate",
     # Web
