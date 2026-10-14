@@ -49,6 +49,7 @@ SHORT_MEMORY_MAX = 10                 # max recent turns in session
 # ── Tool Safety ───────────────────────────────────────────────────────────────
 ALLOW_SHELL     = True                # set False to disable terminal tool
 ALLOW_WRITE     = True                # set False to make agent read-only
+CONFIRM_EDITS   = os.getenv("CONFIRM_EDITS", "false").lower() in ("true", "1", "yes")  # interactive diff confirmation
 SHELL_TIMEOUT   = 15                  # seconds before shell command is killed
 
 # ── Planner ───────────────────────────────────────────────────────────────────

@@ -256,3 +256,122 @@ def get_repo_map(root: str, max_files: int = 40) -> str:
 
     return "\n".join(lines)
 
+
+def rank_codebase_files(
+    root: str,
+    query: str = "",
+    max_files: int = 15,
+    max_chars_per_file: int = 2000
+) -> Dict:
+    """
+    Rank files in the workspace by BM25 relevance against a task or query.
+    Falls back to scan_codebase if no query terms match.
+    Zero external dependencies — pure standard library.
+    """
+    root_path = Path(root).resolve()
+    if not root_path.exists():
+        return {"ok": False, "error": f"Not found: {root}"}
+
+    # Extract alphanumeric query terms, filtering common stopwords
+    tokens = re.findall(r'[a-zA-Z0-9_]{2,}', (query or "").lower())
+    stopwords = {
+        'the', 'a', 'an', 'and', 'or', 'in', 'on', 'at', 'to', 'for', 'of',
+        'with', 'by', 'is', 'are', 'was', 'were', 'it', 'this', 'that', 'from',
+        'as', 'be', 'do', 'does', 'did', 'can', 'should', 'would', 'could',
+        'how', 'what', 'where', 'when', 'why', 'who', 'i', 'you', 'we', 'they',
+        'file', 'files', 'code', 'function', 'class', 'method', 'please', 'make',
+        'create', 'update', 'fix', 'add', 'write', 'implement', 'run', 'test'
+    }
+    terms = [t for t in tokens if t not in stopwords]
+
+    # Gather candidate files
+    candidates = []
+    for fp in root_path.rglob("*"):
+        if not fp.is_file():
+            continue
+        if any(skip in fp.parts for skip in SKIP_DIRS):
+            continue
+        if fp.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        candidates.append(fp)
+
+    if not candidates:
+        return {"ok": True, "root": str(root_path), "files": {}, "count": 0, "scores": {}}
+
+    if not terms:
+        scan = scan_codebase(root, max_files=max_files)
+        scan["scores"] = {}
+        return scan
+
+    import math
+    from collections import Counter
+
+    doc_data = []
+    df = Counter()
+    total_len = 0
+
+    for fp in candidates:
+        try:
+            rel = str(fp.relative_to(root_path))
+            content = fp.read_text(encoding="utf-8", errors="ignore")
+            words = re.findall(r'[a-zA-Z0-9_]{2,}', content.lower())
+            word_counts = Counter(words)
+            doc_len = len(words)
+            total_len += doc_len
+
+            doc_terms = set(word_counts.keys())
+            rel_lower = rel.lower()
+            for t in terms:
+                if t in doc_terms or t in rel_lower:
+                    df[t] += 1
+
+            doc_data.append({
+                "path": rel,
+                "content": content,
+                "counts": word_counts,
+                "len": doc_len,
+            })
+        except Exception:
+            continue
+
+    if not doc_data:
+        return {"ok": True, "root": str(root_path), "files": {}, "count": 0, "scores": {}}
+
+    num_docs = len(doc_data)
+    avg_len = max(total_len / num_docs, 1.0)
+    k1 = 1.5
+    b = 0.75
+
+    scored = []
+    for doc in doc_data:
+        score = 0.0
+        rel_lower = doc["path"].lower()
+
+        for t in terms:
+            doc_freq = df[t]
+            if doc_freq == 0:
+                continue
+
+            idf = math.log(1.0 + (num_docs - doc_freq + 0.5) / (doc_freq + 0.5))
+            tf = doc["counts"].get(t, 0)
+            tf_comp = (tf * (k1 + 1.0)) / (tf + k1 * (1.0 - b + b * (doc["len"] / avg_len)))
+            score += idf * tf_comp
+
+            if t in rel_lower:
+                score += 3.0
+
+        if score > 0:
+            scored.append((doc["path"], doc["content"], score))
+
+    scored.sort(key=lambda x: x[2], reverse=True)
+
+    if scored:
+        top = scored[:max_files]
+        files = {item[0]: item[1][:max_chars_per_file] for item in top}
+        scores = {item[0]: round(item[2], 2) for item in top}
+        return {"ok": True, "root": str(root_path), "files": files, "count": len(files), "scores": scores}
+
+    scan = scan_codebase(root, max_files=max_files)
+    scan["scores"] = {}
+    return scan
+

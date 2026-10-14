@@ -10,10 +10,13 @@ No manual approval needed.
 
 import re
 import os
+import sys
+import difflib
 from pathlib import Path
 from typing import Dict, Optional, List
 from core.llm import ask
 from core.prompt_builder import build, SYSTEM_PROMPT
+from core.ui import format_colored_diff, C
 from tools import file_tools, code_tools, terminal_tools
 
 
@@ -142,10 +145,23 @@ def _detect_missing_module(stderr: str) -> Optional[str]:
 
 # ── Auto-actions ──────────────────────────────────────────────────────────────
 
-def _auto_edit_files(edit_blocks: List[Dict], cwd: str) -> List[str]:
+def _prompt_confirmation(action_desc: str) -> str:
+    """Prompt user for confirmation [y/n/a/q]. Defaults to 'y' in non-interactive environments."""
+    if not sys.stdin.isatty():
+        return "y"
+    try:
+        ans = input(f"{C.BOLD}{C.YELLOW}❓ {action_desc} [y/n/a/q]? (yes, no, all, quit): {C.RESET}").strip().lower()
+        return ans or "y"
+    except (EOFError, KeyboardInterrupt):
+        return "q"
+
+
+def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -> List[str]:
     """Apply surgical search/replace edit blocks to files safely."""
     edited = []
     cwd_path = Path(cwd).resolve()
+    accept_all = not confirm
+
     for eb in edit_blocks:
         path = eb["path"].strip().replace("\\", "/")
         if ":" in path:
@@ -161,6 +177,40 @@ def _auto_edit_files(edit_blocks: List[Dict], cwd: str) -> List[str]:
             print(f"   ⚠️  Cannot edit nonexistent file: {eb['path']}")
             continue
 
+        orig_content = target_path.read_text(encoding="utf-8", errors="ignore")
+        c_norm = orig_content.replace("\r\n", "\n")
+        t_norm = eb["target"].replace("\r\n", "\n")
+        r_norm = eb["replacement"].replace("\r\n", "\n")
+
+        if t_norm not in c_norm:
+            print(f"   ⚠️  Target content not found in {eb['path']}")
+            continue
+
+        if not accept_all:
+            simulated = c_norm.replace(t_norm, r_norm, 1)
+            diff_lines = list(difflib.unified_diff(
+                c_norm.splitlines(keepends=True),
+                simulated.splitlines(keepends=True),
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+                n=3
+            ))
+            diff_text = "".join(diff_lines)
+            if diff_text:
+                print(f"\n{C.CYAN}--- Proposed edit for {path} ---{C.RESET}")
+                print(format_colored_diff(diff_text))
+                print(f"{C.CYAN}----------------------------------{C.RESET}")
+
+            decision = _prompt_confirmation(f"Apply edit to {path}")
+            if decision in ("q", "quit"):
+                print("   🚫 Edit cancelled by user.")
+                break
+            elif decision in ("n", "no"):
+                print(f"   ⏭️  Skipped edit for {path}.")
+                continue
+            elif decision in ("a", "all"):
+                accept_all = True
+
         r = file_tools.replace_in_file(str(target_path), eb["target"], eb["replacement"])
         if r["ok"]:
             print(f"   ✏️  Surgically edited: {r['path']}")
@@ -170,15 +220,14 @@ def _auto_edit_files(edit_blocks: List[Dict], cwd: str) -> List[str]:
     return edited
 
 
-def _auto_write_files(file_blocks: List[Dict], cwd: str) -> List[str]:
+def _auto_write_files(file_blocks: List[Dict], cwd: str, confirm: bool = False) -> List[str]:
     """Write all detected file blocks to disk safely. Returns list of written paths."""
     written = []
     cwd_path = Path(cwd).resolve()
+    accept_all = not confirm
+
     for fb in file_blocks:
-        path = fb["path"].strip()
-        # Force all paths to be relative to the workspace (cwd)
-        # Strip leading slashes or Windows drive letters from the LLM's hallucinated paths
-        path = path.replace("\\", "/")
+        path = fb["path"].strip().replace("\\", "/")
         if ":" in path:
             path = path.split(":", 1)[1]
         path = path.lstrip("/")
@@ -187,6 +236,18 @@ def _auto_write_files(file_blocks: List[Dict], cwd: str) -> List[str]:
         if not target_path.is_relative_to(cwd_path):
             print(f"   ⚠️  Blocked unsafe path escaping workspace: {fb['path']}")
             continue
+
+        if not accept_all:
+            action_name = "Overwrite" if target_path.exists() else "Create"
+            decision = _prompt_confirmation(f"{action_name} file {path} ({len(fb['content'])} chars)")
+            if decision in ("q", "quit"):
+                print("   🚫 File write cancelled by user.")
+                break
+            elif decision in ("n", "no"):
+                print(f"   ⏭️  Skipped write for {path}.")
+                continue
+            elif decision in ("a", "all"):
+                accept_all = True
 
         r = file_tools.write_file(str(target_path), fb["content"])
         if r["ok"]:
@@ -250,13 +311,14 @@ def execute_step(
     code_context: str    = "",
     repo_map: str        = "",
     cwd: str             = ".",
-    previous_result: str = ""
+    previous_result: str = "",
+    confirm_edits: bool  = False
 ) -> Dict:
     """
     Fully autonomous step execution:
-    1. Ask LLM with enriched prompt (including repo map and code context)
-    2. Parse response for surgical edit blocks → apply them
-    3. Parse response for file blocks → write them
+    1. Ask LLM with enriched prompt (including repo map and ranked code context)
+    2. Parse response for surgical edit blocks → apply them (with optional diff confirmation)
+    3. Parse response for file blocks → write them (with optional confirmation)
     4. Parse for pip/npm → install them
     5. Parse for code → run it (if step requests execution or standalone runnable)
     6. Return everything that happened
@@ -264,9 +326,14 @@ def execute_step(
 
     # Always inject codebase scan and repo map into every step if not provided
     if not code_context:
-        scan = file_tools.scan_codebase(cwd)
-        if scan["ok"]:
-            code_context = file_tools.build_context_string(scan, char_limit=1800)
+        query = f"{step} {task}".strip()
+        ranked = file_tools.rank_codebase_files(cwd, query=query, max_files=15)
+        if ranked.get("ok") and ranked.get("files"):
+            code_context = file_tools.build_context_string(ranked, char_limit=1800)
+        else:
+            scan = file_tools.scan_codebase(cwd)
+            if scan.get("ok"):
+                code_context = file_tools.build_context_string(scan, char_limit=1800)
 
     if not repo_map:
         repo_map = file_tools.get_repo_map(cwd)
@@ -291,22 +358,27 @@ def execute_step(
     # ── 1. Surgical SEARCH/REPLACE edits ──────────────────────────────────────
     edit_blocks = _extract_edit_blocks(response)
     if edit_blocks:
-        edited = _auto_edit_files(edit_blocks, cwd)
+        edited = _auto_edit_files(edit_blocks, cwd, confirm=confirm_edits)
         if edited:
             actions_log.append(f"Files edited: {', '.join(edited)}")
 
     # ── 2. Auto-write any new or full FILE: blocks ────────────────────────────
     file_blocks = _extract_file_blocks(response)
     if file_blocks:
-        written = _auto_write_files(file_blocks, cwd)
+        written = _auto_write_files(file_blocks, cwd, confirm=confirm_edits)
         if written:
             actions_log.append(f"Files written: {', '.join(written)}")
 
     # Refresh code context and repo map if files were modified
     if edit_blocks or file_blocks:
-        scan = file_tools.scan_codebase(cwd)
-        if scan["ok"]:
-            code_context = file_tools.build_context_string(scan, char_limit=1800)
+        query = f"{step} {task}".strip()
+        ranked = file_tools.rank_codebase_files(cwd, query=query, max_files=15)
+        if ranked.get("ok") and ranked.get("files"):
+            code_context = file_tools.build_context_string(ranked, char_limit=1800)
+        else:
+            scan = file_tools.scan_codebase(cwd)
+            if scan.get("ok"):
+                code_context = file_tools.build_context_string(scan, char_limit=1800)
         repo_map = file_tools.get_repo_map(cwd)
 
     # ── 3. Auto-install pip packages ──────────────────────────────────────────

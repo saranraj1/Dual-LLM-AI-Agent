@@ -205,3 +205,39 @@ class TestAutoEditFiles:
             edited = _auto_edit_files(blocks, tmpdir)
             assert len(edited) == 0
 
+    def test_confirm_mode_applies_when_confirmed(self, monkeypatch):
+        import agent.executor as ex
+        monkeypatch.setattr(ex, "_prompt_confirmation", lambda desc: "y")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = os.path.join(tmpdir, "main.py")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("val = 1\n")
+
+            blocks = [{"path": "main.py", "target": "val = 1", "replacement": "val = 2"}]
+            edited = _auto_edit_files(blocks, tmpdir, confirm=True)
+            assert len(edited) == 1
+            assert open(file_path).read() == "val = 2\n"
+
+    def test_confirm_mode_skips_when_rejected(self, monkeypatch):
+        import agent.executor as ex
+        monkeypatch.setattr(ex, "_prompt_confirmation", lambda desc: "n")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = os.path.join(tmpdir, "main.py")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("val = 1\n")
+
+            blocks = [{"path": "main.py", "target": "val = 1", "replacement": "val = 2"}]
+            edited = _auto_edit_files(blocks, tmpdir, confirm=True)
+            assert len(edited) == 0
+            assert open(file_path).read() == "val = 1\n"
+
+
+class TestFormatColoredDiff:
+    def test_colors_diff_lines(self):
+        from core.ui import format_colored_diff
+        sample_diff = "--- a/test.py\n+++ b/test.py\n@@ -1 +1 @@\n-old\n+new"
+        colored = format_colored_diff(sample_diff)
+        assert "+new" in colored
+        assert "-old" in colored
+
+

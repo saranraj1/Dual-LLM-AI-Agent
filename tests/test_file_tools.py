@@ -170,3 +170,51 @@ class TestGetRepoMap:
             assert "def helper_func()" in repo_map
             assert "_private_func" not in repo_map
 
+
+class TestRankCodebaseFiles:
+    def test_ranks_relevant_files_higher_by_bm25(self):
+        from tools.file_tools import rank_codebase_files
+        with tempfile.TemporaryDirectory() as tmpdir:
+            math_file = os.path.join(tmpdir, "math_ops.py")
+            with open(math_file, "w", encoding="utf-8") as f:
+                f.write("def fibonacci(n):\n    # sequence algorithm calculation\n    return n\n")
+
+            text_file = os.path.join(tmpdir, "text_ops.py")
+            with open(text_file, "w", encoding="utf-8") as f:
+                f.write("def uppercase(s):\n    return s.upper()\n")
+
+            res = rank_codebase_files(tmpdir, query="fibonacci calculation")
+            assert res["ok"] is True
+            assert len(res["files"]) > 0
+            file_keys = list(res["files"].keys())
+            assert "math_ops.py" == file_keys[0]
+            assert res["scores"]["math_ops.py"] > res["scores"].get("text_ops.py", 0)
+
+    def test_boosts_matching_filename(self):
+        from tools.file_tools import rank_codebase_files
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_file = os.path.join(tmpdir, "database.py")
+            with open(db_file, "w", encoding="utf-8") as f:
+                f.write("# connection pool\n")
+
+            other_file = os.path.join(tmpdir, "other.py")
+            with open(other_file, "w", encoding="utf-8") as f:
+                f.write("# general code\n")
+
+            res = rank_codebase_files(tmpdir, query="database pool")
+            assert res["ok"] is True
+            file_keys = list(res["files"].keys())
+            assert "database.py" == file_keys[0]
+
+    def test_fallback_to_scan_when_empty_query(self):
+        from tools.file_tools import rank_codebase_files
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = os.path.join(tmpdir, "dummy.py")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("val = 123\n")
+
+            res = rank_codebase_files(tmpdir, query="")
+            assert res["ok"] is True
+            assert "dummy.py" in res["files"]
+
+

@@ -134,3 +134,20 @@ def stream_token(token: str):
 def print_token_stats(prompt_tokens: int, gen_tokens: int, elapsed: float, backend: str):
     tps = gen_tokens / max(elapsed, 0.01)
     print(f"\n{C.GRAY}[{backend} · {gen_tokens} tokens · {tps:.0f} tok/s · {elapsed:.1f}s]{C.RESET}")
+
+
+def format_colored_diff(diff_text: str) -> str:
+    """Format unified diff output with terminal colors."""
+    lines = []
+    for line in diff_text.splitlines():
+        if line.startswith("+++") or line.startswith("---"):
+            lines.append(f"{C.BOLD}{line}{C.RESET}")
+        elif line.startswith("@@"):
+            lines.append(f"{C.CYAN}{line}{C.RESET}")
+        elif line.startswith("+"):
+            lines.append(f"{C.GREEN}{line}{C.RESET}")
+        elif line.startswith("-"):
+            lines.append(f"{C.RED}{line}{C.RESET}")
+        else:
+            lines.append(f"{C.GRAY}{line}{C.RESET}")
+    return "\n".join(lines)

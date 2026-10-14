@@ -83,6 +83,7 @@ def _banner():
         cmd("/clear",             "wipe all memory"),
         cmd("/mode <name>",       "debug/architect/tutor/fast/review"),
         cmd("/model [backend]",   "switch backend: auto/local/groq"),
+        cmd("/confirm [on|off]",  "confirm diffs before applying"),
         cmd("/config [key val]",  "view/change settings live"),
         cmd("/benchmark",         "compare local vs Groq speed"),
         sep(),
@@ -170,6 +171,7 @@ def chat_loop(agent: Agent):
             "clear":      lambda a: agent.clear_memory(),
             "mode":       lambda a: print(agent.mode(a)),
             "model":      lambda a: _select_backend(a),
+            "confirm":    lambda a: print(agent.confirm(a)),
             "config":     lambda a: print(agent.config(a)),
             "benchmark":  lambda a: agent.benchmark(a),
 
@@ -260,6 +262,7 @@ def main():
     parser.add_argument("--serve",         action="store_true", help="Start the Web Chat UI + REST API server")
     parser.add_argument("--port",          type=int, default=8000, help="Port for --serve (default: 8000)")
     parser.add_argument("--host",          type=str, default="0.0.0.0", help="Host for --serve")
+    parser.add_argument("--confirm-edits", action="store_true", help="Prompt for confirmation before applying file edits/writes")
     parser.add_argument("--install-hook",  action="store_true", help="Install git pre-commit hook in this project")
     parser.add_argument("--strict-hook",   action="store_true", help="Install hook in STRICT mode (blocks commits on issues)")
     parser.add_argument("--remove-hook",   action="store_true", help="Remove the git pre-commit hook")
@@ -306,7 +309,7 @@ def main():
             set_backend("groq")
         print()
 
-    agent = Agent(workspace=workspace)
+    agent = Agent(workspace=workspace, confirm_edits=args.confirm_edits)
 
     if args.memory:
         _show_memory(agent)

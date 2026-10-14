@@ -43,13 +43,14 @@ from agent.watcher      import cmd_watch
 from agent.daily_digest import show_digest
 from memory.short_memory import ShortMemory
 from memory.long_memory  import LongMemory
-from tools.file_tools    import scan_codebase, build_context_string, list_dir, get_repo_map
+from tools.file_tools    import scan_codebase, build_context_string, list_dir, get_repo_map, rank_codebase_files
 from tools.clipboard_monitor import ClipboardMonitor
 from tools.notifications  import notify_task_done, notify_info
 from tools.knowledge_base import kb_context
 from core.llm             import ask, ask_stream, get_backend
 from core.prompt_builder  import build, SYSTEM_PROMPT
 from core.exceptions      import BackendUnavailableError, AgentError
+from config.settings      import CONFIRM_EDITS
 from core.ui              import (
     C, Spinner, ok, warn, err, info, step, dim, bold,
     agent_label, print_separator, print_task_start, print_step,
@@ -58,8 +59,9 @@ from core.ui              import (
 
 
 class Agent:
-    def __init__(self, workspace: str = "."):
+    def __init__(self, workspace: str = ".", confirm_edits: bool = False):
         self.workspace       = os.path.abspath(workspace)
+        self.confirm_edits   = confirm_edits or CONFIRM_EDITS
         self.short_mem       = ShortMemory()
         self.long_mem        = LongMemory()
         self.code_context    = ""
@@ -105,9 +107,15 @@ class Agent:
 
         self._print(f"   {C.SUCCESS}✅ Workspace loaded — agent is ready.{C.RESET}\n")
 
-    def _refresh_scan(self):
+    def _refresh_scan(self, query: str = ""):
+        if query:
+            ranked = rank_codebase_files(self.workspace, query=query, max_files=15)
+            if ranked.get("ok") and ranked.get("files"):
+                self.code_context = build_context_string(ranked, char_limit=800)
+                self.repo_map = get_repo_map(self.workspace)
+                return
         scan = scan_codebase(self.workspace)
-        if scan["ok"]:
+        if scan.get("ok"):
             self.code_context = build_context_string(scan, char_limit=800)
         self.repo_map = get_repo_map(self.workspace)
 
@@ -165,6 +173,19 @@ class Agent:
     def export(self, args):       return cmd_export(self, args)
     def config(self, args):       return cmd_config(self, args)
     def benchmark(self, args):    return cmd_benchmark(self, args)
+    def confirm(self, args: str = ""):
+        val = args.strip().lower()
+        if val in ("on", "true", "1", "yes"):
+            self.confirm_edits = True
+            return ok("Interactive edit confirmation enabled.")
+        elif val in ("off", "false", "0", "no"):
+            self.confirm_edits = False
+            return ok("Interactive edit confirmation disabled.")
+        elif not val:
+            state = "ENABLED" if self.confirm_edits else "DISABLED"
+            return f"{C.CYAN}Interactive edit confirmation:{C.RESET} {state} (/confirm on | off)"
+        else:
+            return warn("Usage: /confirm [on|off]")
 
     # New local-machine features
     def kb(self, args):           return cmd_kb(self, args)
@@ -179,7 +200,7 @@ class Agent:
         t_start = time.time()
 
         print_task_start(task, self.workspace)
-        self._refresh_scan()
+        self._refresh_scan(query=task)
 
         print(f"\n{C.CYAN}📋 Planning steps...{C.RESET}")
         with Spinner("Planning"):
@@ -202,7 +223,8 @@ class Agent:
                         code_context    = code_context,
                         repo_map        = self.repo_map,
                         cwd             = self.workspace,
-                        previous_result = accumulated[-600:] if accumulated else ""
+                        previous_result = accumulated[-600:] if accumulated else "",
+                        confirm_edits   = self.confirm_edits,
                     )
 
                 if result_obj.get("code_context"):
@@ -248,6 +270,7 @@ class Agent:
         return summary
 
     def chat(self, message: str) -> str:
+        self._refresh_scan(query=message)
         mem           = self._get_memory_context()
         tree_ctx      = f"## Directory Structure\n{self.dir_tree}" if self.dir_tree else ""
         full_code_ctx = (tree_ctx + "\n\n" + self.code_context).strip()
@@ -297,8 +320,8 @@ class Agent:
             for eb in edit_blocks:
                 abs_path = os.path.join(self.workspace, eb["path"])
                 _backup_file(abs_path, self.workspace)
-            _auto_edit_files(edit_blocks, self.workspace)
-            self._refresh_scan()
+            _auto_edit_files(edit_blocks, self.workspace, confirm=self.confirm_edits)
+            self._refresh_scan(query=message)
 
         file_blocks = _extract_file_blocks(full)
         if file_blocks:
@@ -306,8 +329,8 @@ class Agent:
             for fb in file_blocks:
                 abs_path = os.path.join(self.workspace, fb["path"])
                 _backup_file(abs_path, self.workspace)
-            _auto_write_files(file_blocks, self.workspace)
-            self._refresh_scan()
+            _auto_write_files(file_blocks, self.workspace, confirm=self.confirm_edits)
+            self._refresh_scan(query=message)
 
         pkgs = _extract_pip_packages(full)
         if pkgs:
