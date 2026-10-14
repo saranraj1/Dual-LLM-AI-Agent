@@ -16,6 +16,8 @@ from agent.commands.code_quality import (
     cmd_test,
     cmd_fix,
     cmd_todo,
+    cmd_tdd,
+    cmd_blast,
 )
 
 # ── Project commands (agent/commands/project.py) ──────────────────────────────
@@ -68,6 +70,7 @@ __all__ = [
     # Code quality
     "cmd_review", "cmd_optimize", "cmd_refactor", "cmd_security",
     "cmd_format", "cmd_lint", "cmd_test", "cmd_fix", "cmd_todo",
+    "cmd_tdd", "cmd_blast",
     # Project
     "cmd_docs", "cmd_git", "cmd_summarize", "cmd_changelog",
     "cmd_stats", "cmd_deps", "cmd_diagram", "cmd_scaffold",

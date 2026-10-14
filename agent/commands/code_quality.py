@@ -483,3 +483,79 @@ Current file:
 
     agent._refresh_scan()
     return f"✅ Addressed TODOs in {len(fixed_files)} file(s).\n\n{summary}"
+
+
+# ── /tdd ──────────────────────────────────────────────────────────────────────
+
+def cmd_tdd(agent, args: str) -> str:
+    """
+    Autonomous Self-Healing TDD Cycle:
+    Red (failing test) -> Green (minimal surgical fix) -> Self-Heal -> Zero-Regression Gate.
+    Usage: /tdd <feature or bug description>
+    """
+    task = args.strip()
+    if not task:
+        return "Usage: /tdd <feature or bug description>"
+
+    from agent.tdd_loop import run_tdd_cycle
+    result = run_tdd_cycle(
+        task=task,
+        workspace=agent.workspace,
+        confirm_edits=agent.confirm_edits,
+        short_mem=agent.short_mem,
+        long_mem=agent.long_mem,
+    )
+    if result["status"] == "COMPLETED":
+        return (
+            f"✅ TDD Cycle Succeeded!\n"
+            f"• Test: {result.get('test_file')}\n"
+            f"• Patched: {', '.join(result.get('patched_files', []))}\n"
+            f"• Heal attempts: {result.get('heal_attempts', 0)}"
+        )
+    else:
+        return f"❌ TDD Cycle Failed: {result.get('error')}"
+
+
+# ── /blast ────────────────────────────────────────────────────────────────────
+
+def cmd_blast(agent, args: str) -> str:
+    """
+    AST Blast Radius Analyzer:
+    Compute direct callers, importing files, and affected test suites for a symbol or file.
+    Usage: /blast <symbol> [optional_file]
+    """
+    parts = args.strip().split()
+    if not parts:
+        return "Usage: /blast <symbol> [optional_file]"
+
+    symbol = parts[0]
+    target_file = parts[1] if len(parts) > 1 else ""
+
+    from tools.graph_tools import compute_blast_radius
+    blast = compute_blast_radius(symbol, target_file=target_file, root_dir=agent.workspace)
+
+    lines = [
+        f"\n💥 AST Blast Radius Analysis: '{symbol}'",
+        f"   Severity: {blast['severity']}",
+        f"   Target:   {blast['target_symbol']} in {blast['target_file'] or 'codebase'}",
+        f"   Callers:  {blast['caller_count']} direct caller(s)",
+    ]
+    if blast["callers"]:
+        lines.append("   Direct Callers:")
+        for c in blast["callers"][:10]:
+            lines.append(f"     • {c['file']}:{c['line']} in `{c.get('caller_function') or '<module>'}`")
+    if blast["affected_files"]:
+        lines.append(f"   Files Importing / Using Symbol: {len(blast['affected_files'])}")
+        for f in blast["affected_files"][:10]:
+            lines.append(f"     • {f}")
+    if blast["affected_tests"]:
+        lines.append(f"   Impacted Test Suites: {len(blast['affected_tests'])}")
+        for t in blast["affected_tests"]:
+            lines.append(f"     • 🧪 {t}")
+    else:
+        lines.append("   Impacted Test Suites: None identified")
+
+    output = "\n".join(lines)
+    print(output)
+    return output
+

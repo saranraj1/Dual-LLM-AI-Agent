@@ -92,3 +92,28 @@ def lint_python(code: str) -> Dict:
         return {"ok": True, "error": None}
     except SyntaxError as e:
         return {"ok": False, "error": f"SyntaxError at line {e.lineno}: {e.msg}"}
+
+
+def run_pytest(test_path: str = None, cwd: str = None, timeout: int = 45) -> Dict:
+    """Run pytest on a specific file or the entire test suite."""
+    cmd = [sys.executable, "-m", "pytest", "-q"]
+    if test_path:
+        cmd.append(test_path)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=cwd
+        )
+        return {
+            "ok": result.returncode == 0,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+            "exit": result.returncode
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "stdout": "", "stderr": f"Pytest timed out ({timeout}s)", "exit": -1}
+    except Exception as e:
+        return {"ok": False, "stdout": "", "stderr": str(e), "exit": -1}

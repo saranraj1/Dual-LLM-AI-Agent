@@ -156,6 +156,27 @@ def _prompt_confirmation(action_desc: str) -> str:
         return "q"
 
 
+def _check_blast_radius_advisory(target_code: str, file_rel_path: str, cwd: str):
+    """Analyze and display AST blast radius advisory before modifying code."""
+    if not file_rel_path.endswith(".py"):
+        return
+    try:
+        from tools.graph_tools import compute_blast_radius
+        symbols = re.findall(r'^\s*(?:def|class)\s+([a-zA-Z_][a-zA-Z0-9_]*)', target_code, re.MULTILINE)
+        if not symbols:
+            return
+        for sym in symbols[:3]:
+            blast = compute_blast_radius(sym, target_file=file_rel_path, root_dir=cwd)
+            if blast.get("caller_count", 0) > 0:
+                callers = [c["file"] for c in blast["callers"][:3]]
+                extra = f" (+{blast['caller_count'] - len(callers)} more)" if blast["caller_count"] > len(callers) else ""
+                print(f"   ⚠️  Blast Radius [{blast['severity']}]: '{sym}' has {blast['caller_count']} caller(s) in {', '.join(callers)}{extra}")
+                if blast.get("affected_tests"):
+                    print(f"   🧪  Impacted test suites: {', '.join(blast['affected_tests'][:3])}")
+    except Exception:
+        pass
+
+
 def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -> List[str]:
     """Apply surgical search/replace edit blocks to files safely."""
     edited = []
@@ -185,6 +206,8 @@ def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -
         if t_norm not in c_norm:
             print(f"   ⚠️  Target content not found in {eb['path']}")
             continue
+
+        _check_blast_radius_advisory(eb["target"], path, str(cwd_path))
 
         if not accept_all:
             simulated = c_norm.replace(t_norm, r_norm, 1)
@@ -236,6 +259,9 @@ def _auto_write_files(file_blocks: List[Dict], cwd: str, confirm: bool = False) 
         if not target_path.is_relative_to(cwd_path):
             print(f"   ⚠️  Blocked unsafe path escaping workspace: {fb['path']}")
             continue
+
+        if target_path.exists():
+            _check_blast_radius_advisory(fb["content"], path, str(cwd_path))
 
         if not accept_all:
             action_name = "Overwrite" if target_path.exists() else "Create"

@@ -25,6 +25,7 @@ from agent.commands import (
     cmd_test, cmd_fix, cmd_todo,
     # Code quality
     cmd_review, cmd_optimize, cmd_refactor, cmd_security, cmd_format, cmd_lint,
+    cmd_tdd, cmd_blast,
     # Project
     cmd_docs, cmd_git, cmd_summarize, cmd_changelog,
     cmd_stats, cmd_deps, cmd_diagram, cmd_scaffold,
@@ -148,6 +149,8 @@ class Agent:
     def test(self, args):         return cmd_test(self, args)
     def fix(self, args):          return cmd_fix(self, args)
     def todo(self, args):         return cmd_todo(self, args)
+    def tdd(self, args):          return cmd_tdd(self, args)
+    def blast(self, args):        return cmd_blast(self, args)
 
     def review(self, args):       return cmd_review(self, args)
     def optimize(self, args):     return cmd_optimize(self, args)

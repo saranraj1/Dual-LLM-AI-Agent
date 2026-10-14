@@ -618,6 +618,8 @@ body {
       <button class="cmd-btn" onclick="insertCmd('/review')"  title="Code review"><span class="cmd-icon">🔍</span>/review <span class="cmd-badge">file</span></button>
       <button class="cmd-btn" onclick="insertCmd('/fix')"     title="Auto-fix errors"><span class="cmd-icon">🔧</span>/fix <span class="cmd-badge">file</span></button>
       <button class="cmd-btn" onclick="insertCmd('/test')"    title="Generate tests"><span class="cmd-icon">🧪</span>/test <span class="cmd-badge">file</span></button>
+      <button class="cmd-btn" onclick="insertCmd('/tdd')"     title="Autonomous Self-Healing TDD"><span class="cmd-icon">🔄</span>/tdd <span class="cmd-badge">task</span></button>
+      <button class="cmd-btn" onclick="insertCmd('/blast')"   title="AST Blast Radius Analysis"><span class="cmd-icon">💥</span>/blast <span class="cmd-badge">sym</span></button>
       <button class="cmd-btn" onclick="insertCmd('/refactor')"><span class="cmd-icon">♻️</span>/refactor <span class="cmd-badge">file</span></button>
       <button class="cmd-btn" onclick="insertCmd('/security')"><span class="cmd-icon">🔒</span>/security</button>
       <button class="cmd-btn" onclick="insertCmd('/git')"     title="Commit with AI message"><span class="cmd-icon">📦</span>/git</button>
@@ -658,6 +660,7 @@ body {
       <div class="mode-tabs">
         <button class="mode-tab active" id="tab-chat" onclick="setMode('chat')">💬 Chat</button>
         <button class="mode-tab"        id="tab-run"  onclick="setMode('run')">⚡ Run Task</button>
+        <button class="mode-tab"        id="tab-graph" onclick="setMode('graph')">🕸️ Call Graph</button>
       </div>
 
       <!-- ── Backend selector ─────────────────────────────────── -->
@@ -719,6 +722,58 @@ body {
       </div>
       <div class="input-hint">
         <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> new line · <kbd>⚡ Run</kbd> for autonomous task mode
+      </div>
+    </div>
+
+    <!-- ── AST Call Graph & Blast Radius Visualizer ────────────────────────── -->
+    <div class="graph-view" id="graph-view" style="display: none; flex: 1; flex-direction: column; overflow: hidden; background: var(--bg-primary);">
+      <div style="display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-wrap: wrap;">
+        <input type="text" id="graph-search" placeholder="Filter symbols (e.g. ask, plan)..." 
+          style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text-primary); font-size: 12px; width: 200px;"
+          oninput="filterGraphNodes(this.value)" />
+        
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input type="text" id="blast-symbol-input" placeholder="Symbol for blast check..." 
+            style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text-primary); font-size: 12px; width: 180px;"
+            onkeydown="if(event.key==='Enter') runBlastAnalysis()" />
+          <button class="cmd-btn" style="width: auto; padding: 6px 12px; background: var(--accent); color: #fff; font-weight: 500; cursor: pointer; border-radius: 6px;" onclick="runBlastAnalysis()">💥 Blast Check</button>
+        </div>
+
+        <button class="cmd-btn" style="width: auto; padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border); cursor: pointer; border-radius: 6px;" onclick="loadGraph()">↻ Refresh</button>
+
+        <div style="margin-left: auto; display: flex; gap: 12px; font-size: 11px; color: var(--text-secondary); align-items: center;">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#388bfd;margin-right:4px;"></span>Function</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#bc8cff;margin-right:4px;"></span>Class</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fb950;margin-right:4px;"></span>Method</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f85149;margin-right:4px;"></span>Impacted</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex: 1; overflow: hidden; position: relative;">
+        <div id="graph-canvas-container" style="flex: 1; position: relative; overflow: auto; background: #0b0f14;">
+          <svg id="graph-svg" width="100%" height="100%" style="min-width: 900px; min-height: 700px; display: block;">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#484f58"></path>
+              </marker>
+              <marker id="arrow-blast" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#f85149"></path>
+              </marker>
+            </defs>
+            <g id="graph-links"></g>
+            <g id="graph-nodes"></g>
+          </svg>
+          <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(13,17,23,0.8); color: var(--text-secondary); font-size: 14px;">
+            Loading codebase AST call-graph…
+          </div>
+        </div>
+        
+        <div id="graph-inspector" style="width: 320px; background: var(--bg-secondary); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto;">
+          <h3 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">Node Inspector</h3>
+          <div id="inspector-content" style="color: var(--text-secondary); font-size: 13px; line-height: 1.6;">
+            Select any symbol on the graph or run a <strong>Blast Check</strong> to analyze caller ripple effects, importing files, and impacted test suites.
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -799,19 +854,321 @@ let isStreaming  = false;
 let panelVisible = true;
 
 // ── Mode ──────────────────────────────────────────────────────────────────────
+let graphDataLoaded = false;
+let globalGraphData = null;
+let activeBlastData = null;
+
 function setMode(mode) {
   currentMode = mode;
   document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(`tab-${mode}`).classList.add('active');
+  const activeTab = document.getElementById(`tab-${mode}`);
+  if (activeTab) activeTab.classList.add('active');
   const topbarTitle = document.getElementById('topbar-title');
   const input = document.getElementById('chat-input');
-  if (mode === 'run') {
-    topbarTitle.textContent = 'Autonomous Task Runner';
-    input.placeholder = 'Describe a task for the agent to execute autonomously…';
+  const chatArea = document.getElementById('chat-area');
+  const inputArea = document.querySelector('.input-area');
+  const graphView = document.getElementById('graph-view');
+
+  if (mode === 'graph') {
+    topbarTitle.textContent = 'AST Call-Graph & Blast Radius Visualizer';
+    if (chatArea) chatArea.style.display = 'none';
+    if (inputArea) inputArea.style.display = 'none';
+    if (graphView) graphView.style.display = 'flex';
+    if (!graphDataLoaded) loadGraph();
   } else {
-    topbarTitle.textContent = 'Coding Assistant';
-    input.placeholder = 'Ask a question or type /command…';
+    if (chatArea) chatArea.style.display = 'flex';
+    if (inputArea) inputArea.style.display = 'block';
+    if (graphView) graphView.style.display = 'none';
+    if (mode === 'run') {
+      topbarTitle.textContent = 'Autonomous Task Runner';
+      input.placeholder = 'Describe a task for the agent to execute autonomously…';
+    } else {
+      topbarTitle.textContent = 'Coding Assistant';
+      input.placeholder = 'Ask a question or type /command…';
+    }
   }
+}
+
+async function loadGraph() {
+  const loading = document.getElementById('graph-loading');
+  if (loading) loading.style.display = 'flex';
+  try {
+    const res = await fetch('/graph');
+    const json = await res.json();
+    if (json.ok && json.graph) {
+      globalGraphData = json.graph;
+      graphDataLoaded = true;
+      renderGraph(globalGraphData, activeBlastData);
+    } else {
+      toast('Failed to load dependency graph', 'error');
+    }
+  } catch (err) {
+    toast('Error loading graph: ' + err, 'error');
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+function renderGraph(data, blastData = null) {
+  const svg = document.getElementById('graph-svg');
+  const linksGroup = document.getElementById('graph-links');
+  const nodesGroup = document.getElementById('graph-nodes');
+  if (!svg || !linksGroup || !nodesGroup) return;
+
+  linksGroup.innerHTML = '';
+  nodesGroup.innerHTML = '';
+
+  if (!data || !data.nodes || data.nodes.length === 0) {
+    nodesGroup.innerHTML = '<text x="50" y="50" fill="#8b949e" font-size="14">No AST nodes found in workspace.</text>';
+    return;
+  }
+
+  // Group nodes by file
+  const fileGroups = {};
+  data.nodes.forEach(n => {
+    if (!fileGroups[n.file]) fileGroups[n.file] = [];
+    fileGroups[n.file].push(n);
+  });
+
+  const files = Object.keys(fileGroups).sort();
+  const colSpacing = 280;
+  const rowSpacing = 44;
+  const marginX = 40;
+  const marginY = 50;
+
+  let maxColHeight = 600;
+  const nodePositions = {};
+
+  files.forEach((file, colIdx) => {
+    const x = marginX + colIdx * colSpacing;
+    const y = marginY;
+
+    // Column header
+    const fileHeader = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    fileHeader.setAttribute('x', x);
+    fileHeader.setAttribute('y', y - 16);
+    fileHeader.setAttribute('fill', '#8b949e');
+    fileHeader.setAttribute('font-size', '11');
+    fileHeader.setAttribute('font-weight', '600');
+    fileHeader.textContent = file;
+    nodesGroup.appendChild(fileHeader);
+
+    fileGroups[file].forEach((node, rowIdx) => {
+      const ny = y + rowIdx * rowSpacing;
+      nodePositions[node.id] = { x: x + 10, y: ny, node };
+      if (ny + 80 > maxColHeight) maxColHeight = ny + 80;
+    });
+  });
+
+  const totalWidth = Math.max(900, marginX * 2 + files.length * colSpacing);
+  svg.setAttribute('width', totalWidth);
+  svg.setAttribute('height', maxColHeight);
+
+  // Set of affected caller IDs from blastData if present
+  const impactedIds = new Set();
+  if (blastData) {
+    if (blastData.target_symbol) {
+      data.nodes.forEach(n => {
+        if (n.name === blastData.target_symbol) impactedIds.add(n.id);
+      });
+    }
+    if (blastData.callers) {
+      blastData.callers.forEach(c => {
+        data.nodes.forEach(n => {
+          if (n.file === c.file && (n.name === c.caller_function || (!c.caller_function && n.kind === 'function'))) {
+            impactedIds.add(n.id);
+          }
+        });
+      });
+    }
+  }
+
+  // Draw links
+  (data.links || []).forEach(link => {
+    const src = nodePositions[link.source];
+    const tgt = nodePositions[link.target];
+    if (src && tgt) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const sx = src.x + 80;
+      const sy = src.y;
+      const tx = tgt.x - 10;
+      const ty = tgt.y;
+      const dx = (tx - sx) / 2;
+      const d = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      const isImpacted = blastData && (impactedIds.has(link.source) || impactedIds.has(link.target));
+      path.setAttribute('stroke', isImpacted ? '#f85149' : (link.type === 'call' ? '#30363d' : '#21293a'));
+      path.setAttribute('stroke-width', isImpacted ? '2' : '1.2');
+      path.setAttribute('marker-end', isImpacted ? 'url(#arrow-blast)' : 'url(#arrow)');
+      linksGroup.appendChild(path);
+    }
+  });
+
+  // Draw nodes
+  Object.keys(nodePositions).forEach(nodeId => {
+    const item = nodePositions[nodeId];
+    const n = item.node;
+    const isImpacted = impactedIds.has(nodeId);
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${item.x}, ${item.y})`);
+    g.setAttribute('cursor', 'pointer');
+    g.onclick = () => inspectNode(n);
+
+    // Node bubble/rect
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', '-6');
+    rect.setAttribute('y', '-14');
+    rect.setAttribute('width', '180');
+    rect.setAttribute('height', '26');
+    rect.setAttribute('rx', '6');
+    rect.setAttribute('fill', isImpacted ? 'rgba(248,81,73,0.18)' : '#161b22');
+    rect.setAttribute('stroke', isImpacted ? '#f85149' : (n.kind === 'class' ? '#bc8cff' : n.kind === 'method' ? '#3fb950' : '#388bfd'));
+    rect.setAttribute('stroke-width', isImpacted ? '2' : '1');
+    g.appendChild(rect);
+
+    // Kind icon circle
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', '6');
+    circle.setAttribute('cy', '-1');
+    circle.setAttribute('r', '4');
+    circle.setAttribute('fill', n.kind === 'class' ? '#bc8cff' : n.kind === 'method' ? '#3fb950' : '#388bfd');
+    g.appendChild(circle);
+
+    // Label
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', '16');
+    text.setAttribute('y', '3');
+    text.setAttribute('fill', isImpacted ? '#ff7b72' : '#e6edf3');
+    text.setAttribute('font-size', '11');
+    text.setAttribute('font-family', 'JetBrains Mono, monospace');
+    text.textContent = (n.name.length > 20 ? n.name.slice(0, 19) + '…' : n.name);
+    g.appendChild(text);
+
+    nodesGroup.appendChild(g);
+  });
+}
+
+function filterGraphNodes(query) {
+  if (!globalGraphData) return;
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    renderGraph(globalGraphData, activeBlastData);
+    return;
+  }
+  const filteredNodes = globalGraphData.nodes.filter(n => 
+    n.name.toLowerCase().includes(q) || n.file.toLowerCase().includes(q)
+  );
+  const nodeIds = new Set(filteredNodes.map(n => n.id));
+  const filteredLinks = (globalGraphData.links || []).filter(l => 
+    nodeIds.has(l.source) || nodeIds.has(l.target)
+  );
+  renderGraph({ nodes: filteredNodes, links: filteredLinks }, activeBlastData);
+}
+
+async function inspectNode(node) {
+  const inspector = document.getElementById('inspector-content');
+  if (!inspector) return;
+  inspector.innerHTML = `
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 15px; font-weight: 600; color: #fff; font-family: monospace;">${escapeHTML(node.name)}</div>
+      <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Kind: ${node.kind} • ${node.file}:${node.line}</div>
+    </div>
+    <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-secondary);">
+      Args: <code>(${escapeHTML((node.args || []).join(', '))})</code>
+    </div>
+    <button class="cmd-btn" style="width: 100%; margin-bottom: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; border-radius: 6px;"
+      onclick="runBlastForSymbol('${escapeHTML(node.name)}', '${escapeHTML(node.file)}')">
+      💥 Analyze Blast Radius
+    </button>
+    <button class="cmd-btn" style="width: 100%; margin-bottom: 16px; background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid var(--green); cursor: pointer; border-radius: 6px;"
+      onclick="startTddForSymbol('${escapeHTML(node.name)}')">
+      🔄 Run TDD Cycle on ${escapeHTML(node.name)}
+    </button>
+    <div id="inspector-blast-result"></div>
+  `;
+}
+
+async function runBlastForSymbol(symbol, file = '') {
+  const resultDiv = document.getElementById('inspector-blast-result');
+  if (resultDiv) resultDiv.innerHTML = '<div style="color: var(--text-dim); font-size: 12px;">Calculating AST caller ripple effects…</div>';
+  try {
+    const res = await fetch(`/blast?symbol=${encodeURIComponent(symbol)}&file=${encodeURIComponent(file)}`);
+    const json = await res.json();
+    if (json.ok && json.blast) {
+      activeBlastData = json.blast;
+      renderGraph(globalGraphData, activeBlastData);
+      renderBlastInspector(activeBlastData);
+    } else {
+      toast('Failed to analyze blast radius', 'error');
+    }
+  } catch (err) {
+    toast('Error: ' + err, 'error');
+  }
+}
+
+async function runBlastAnalysis() {
+  const symInput = document.getElementById('blast-symbol-input');
+  if (!symInput) return;
+  const sym = symInput.value.trim();
+  if (!sym) {
+    toast('Enter a symbol name to check', 'error');
+    return;
+  }
+  await runBlastForSymbol(sym);
+}
+
+function renderBlastInspector(blast) {
+  const resultDiv = document.getElementById('inspector-blast-result');
+  if (!resultDiv) return;
+
+  const sevColor = blast.severity === 'HIGH' ? '#f85149' : (blast.severity === 'MEDIUM' ? '#d29922' : '#3fb950');
+  let callersHtml = '<div style="color: var(--text-dim); font-size: 11px;">No direct callers found</div>';
+  if (blast.callers && blast.callers.length > 0) {
+    callersHtml = blast.callers.map(c => `
+      <div style="font-family: monospace; font-size: 11px; margin-bottom: 4px; padding: 4px 6px; background: var(--bg-card); border-radius: 4px;">
+        • ${escapeHTML(c.file)}:${c.line} <code>${escapeHTML(c.caller_function || '<module>')}</code>
+      </div>
+    `).join('');
+  }
+
+  let testsHtml = '<div style="color: var(--text-dim); font-size: 11px;">No impacted test suites</div>';
+  if (blast.affected_tests && blast.affected_tests.length > 0) {
+    testsHtml = blast.affected_tests.map(t => `
+      <div style="font-size: 11px; color: #58a6ff; margin-bottom: 3px;">
+        🧪 ${escapeHTML(t)}
+      </div>
+    `).join('');
+  }
+
+  resultDiv.innerHTML = `
+    <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-dim);">Blast Severity</span>
+        <span style="font-size: 11px; font-weight: 700; color: ${sevColor}; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid ${sevColor};">
+          ${blast.severity}
+        </span>
+      </div>
+      <div style="font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">
+        Direct Callers: <strong style="color: #fff;">${blast.caller_count}</strong>
+      </div>
+      <div style="margin-bottom: 12px; max-height: 140px; overflow-y: auto;">
+        ${callersHtml}
+      </div>
+      <div style="font-size: 12px; margin-bottom: 6px; color: var(--text-secondary);">
+        Impacted Test Suites: <strong style="color: #fff;">${(blast.affected_tests || []).length}</strong>
+      </div>
+      <div style="max-height: 120px; overflow-y: auto;">
+        ${testsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function startTddForSymbol(symbolName) {
+  setMode('chat');
+  insertCmd(`/tdd Implement improvements and tests for ${symbolName}`);
 }
 
 function togglePanel() {

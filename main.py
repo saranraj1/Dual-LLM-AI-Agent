@@ -56,6 +56,8 @@ def _banner():
         cmd("/refactor <file>",   "SOLID principles rewrite"),
         cmd("/security [file]",   "security audit + severity levels"),
         cmd("/test [file]",       "generate + run tests"),
+        cmd("/tdd <task>",        "self-healing closed-loop TDD cycle"),
+        cmd("/blast <sym> [file]","AST blast-radius & caller impact"),
         cmd("/lint [file|fix]",   "run linter, auto-fix issues"),
         cmd("/format [file]",     "auto-format with black"),
         cmd("/todo [fix]",        "list/fix all TODO/FIXME comments"),
@@ -144,6 +146,8 @@ def chat_loop(agent: Agent):
             "refactor":   lambda a: agent.refactor(a),
             "security":   lambda a: agent.security(a),
             "test":       lambda a: print(agent.test(a)),
+            "tdd":        lambda a: print(agent.tdd(a)),
+            "blast":      lambda a: agent.blast(a),
             "lint":       lambda a: print(agent.lint(a)),
             "format":     lambda a: print(agent.format_file(a)),
             "todo":       lambda a: print(agent.todo(a)),
@@ -263,6 +267,8 @@ def main():
     parser.add_argument("--port",          type=int, default=8000, help="Port for --serve (default: 8000)")
     parser.add_argument("--host",          type=str, default="0.0.0.0", help="Host for --serve")
     parser.add_argument("--confirm-edits", action="store_true", help="Prompt for confirmation before applying file edits/writes")
+    parser.add_argument("--tdd",           type=str,          help="Run autonomous self-healing TDD cycle for a feature or bug")
+    parser.add_argument("--blast",         type=str,          help="Analyze AST blast radius for a symbol or file")
     parser.add_argument("--install-hook",  action="store_true", help="Install git pre-commit hook in this project")
     parser.add_argument("--strict-hook",   action="store_true", help="Install hook in STRICT mode (blocks commits on issues)")
     parser.add_argument("--remove-hook",   action="store_true", help="Remove the git pre-commit hook")
@@ -320,6 +326,13 @@ def main():
     if args.task:
         result = agent.run(args.task)
         print(f"\n{C.SUCCESS}📌 Result:{C.RESET}\n{result}")
+        return
+    if args.tdd:
+        result = agent.tdd(args.tdd)
+        print(f"\n{C.SUCCESS}📌 TDD Result:{C.RESET}\n{result}")
+        return
+    if args.blast:
+        agent.blast(args.blast)
         return
 
     chat_loop(agent)

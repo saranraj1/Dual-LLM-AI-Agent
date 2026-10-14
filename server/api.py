@@ -53,6 +53,8 @@ _CMD_MAP = {
     "review":     "review",
     "fix":        "fix",
     "test":       "test",
+    "tdd":        "tdd",
+    "blast":      "blast",
     "refactor":   "refactor",
     "optimize":   "optimize",
     "security":   "security",
@@ -507,6 +509,39 @@ async def get_logs(n: int = 50):
         return {"lines": tail_log(n)}
     except Exception as e:
         return {"lines": f"(log unavailable: {e})"}
+
+
+@app.get("/graph")
+async def get_dependency_graph(workspace: Optional[str] = None):
+    """
+    Export the AST call graph & dependency index for the workspace.
+    Returns node-link format suitable for D3 / SVG graph visualizers.
+    """
+    agent = get_agent()
+    root = os.path.abspath(workspace) if workspace else agent.workspace
+    try:
+        from tools.graph_tools import export_graph_json
+        data = export_graph_json(root)
+        return {"ok": True, "workspace": root, "graph": data}
+    except Exception as e:
+        log.error("error exporting graph: %s", e)
+        raise HTTPException(500, f"Failed to generate dependency graph: {e}")
+
+
+@app.get("/blast")
+async def get_blast_radius(symbol: str, file: Optional[str] = None, workspace: Optional[str] = None):
+    """
+    Calculate AST blast radius and caller impact for a target symbol.
+    """
+    agent = get_agent()
+    root = os.path.abspath(workspace) if workspace else agent.workspace
+    try:
+        from tools.graph_tools import compute_blast_radius
+        blast = compute_blast_radius(symbol=symbol, target_file=file or "", root_dir=root)
+        return {"ok": True, "workspace": root, "blast": blast}
+    except Exception as e:
+        log.error("error computing blast radius: %s", e)
+        raise HTTPException(500, f"Failed to compute blast radius: {e}")
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
