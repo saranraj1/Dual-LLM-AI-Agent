@@ -25,7 +25,7 @@ from agent.commands import (
     cmd_test, cmd_fix, cmd_todo,
     # Code quality
     cmd_review, cmd_optimize, cmd_refactor, cmd_security, cmd_format, cmd_lint,
-    cmd_tdd, cmd_blast,
+    cmd_tdd, cmd_blast, cmd_ask_user,
     # Project
     cmd_docs, cmd_git, cmd_summarize, cmd_changelog,
     cmd_stats, cmd_deps, cmd_diagram, cmd_scaffold,
@@ -151,6 +151,7 @@ class Agent:
     def todo(self, args):         return cmd_todo(self, args)
     def tdd(self, args):          return cmd_tdd(self, args)
     def blast(self, args):        return cmd_blast(self, args)
+    def ask_user(self, args):     return cmd_ask_user(self, args)
 
     def review(self, args):       return cmd_review(self, args)
     def optimize(self, args):     return cmd_optimize(self, args)
@@ -316,6 +317,13 @@ class Agent:
             _extract_file_blocks, _auto_write_files,
             _extract_pip_packages, _auto_install
         )
+        from agent.interactive_qa import extract_ask_user_blocks, ask_user
+
+        qa_blocks = extract_ask_user_blocks(full)
+        if qa_blocks:
+            for qb in qa_blocks:
+                user_choice = ask_user(qb["question"], options=qb["options"], default=qb.get("default"))
+                self.short_mem.add("user", f"[User Decision]: {qb['question']} -> {user_choice}")
 
         edit_blocks = _extract_edit_blocks(full)
         if edit_blocks:

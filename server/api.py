@@ -25,7 +25,7 @@ import json
 import time
 import traceback
 from pathlib import Path
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, List, Dict, Any
 from functools import partial
 
 # ── App root on sys.path ──────────────────────────────────────────────────────
@@ -55,6 +55,8 @@ _CMD_MAP = {
     "test":       "test",
     "tdd":        "tdd",
     "blast":      "blast",
+    "qa":         "ask_user",
+    "ask_user":   "ask_user",
     "refactor":   "refactor",
     "optimize":   "optimize",
     "security":   "security",
@@ -542,6 +544,46 @@ async def get_blast_radius(symbol: str, file: Optional[str] = None, workspace: O
     except Exception as e:
         log.error("error computing blast radius: %s", e)
         raise HTTPException(500, f"Failed to compute blast radius: {e}")
+
+
+# ── Interactive QA Endpoints ──────────────────────────────────────────────────
+
+class QAPromptRequest(BaseModel):
+    question: str
+    options: Optional[List[str]] = None
+    default: Optional[str] = None
+
+class QAAnswerRequest(BaseModel):
+    id: str
+    answer: str
+
+
+@app.get("/qa/pending")
+async def get_qa_pending():
+    """Return all pending questions waiting for user response."""
+    from agent.interactive_qa import get_pending_questions
+    return {"ok": True, "questions": get_pending_questions()}
+
+
+@app.post("/qa/answer")
+async def submit_qa_answer(req: QAAnswerRequest):
+    """Answer a pending interactive question."""
+    from agent.interactive_qa import answer_pending_question
+    answered = answer_pending_question(req.id, req.answer)
+    if not answered:
+        raise HTTPException(404, f"Question ID '{req.id}' not found or already answered")
+    return {"ok": True, "id": req.id, "answer": req.answer}
+
+
+@app.post("/qa/ask")
+async def trigger_qa_ask(req: QAPromptRequest):
+    """Trigger an interactive question."""
+    agent = get_agent()
+    formatted = req.question
+    if req.options:
+        formatted += " | " + " | ".join(req.options)
+    result = agent.ask_user(formatted)
+    return {"ok": True, "question": req.question, "result": result}
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────

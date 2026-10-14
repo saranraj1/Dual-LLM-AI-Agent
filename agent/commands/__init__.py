@@ -64,13 +64,16 @@ from agent.commands.local import (
     cmd_time,
 )
 
+# ── Interactive QA (agent/interactive_qa.py) ──────────────────────────────────
+from agent.interactive_qa import cmd_ask_user
+
 __all__ = [
     # Core / files
     "cmd_diff", "cmd_history", "cmd_undo", "cmd_explain",
     # Code quality
     "cmd_review", "cmd_optimize", "cmd_refactor", "cmd_security",
     "cmd_format", "cmd_lint", "cmd_test", "cmd_fix", "cmd_todo",
-    "cmd_tdd", "cmd_blast",
+    "cmd_tdd", "cmd_blast", "cmd_ask_user",
     # Project
     "cmd_docs", "cmd_git", "cmd_summarize", "cmd_changelog",
     "cmd_stats", "cmd_deps", "cmd_diagram", "cmd_scaffold",

@@ -46,6 +46,7 @@ def _banner():
         sep(),
         section("AGENT"),
         cmd("/run <task>",        "plan + execute + auto-write + reflect"),
+        cmd("/qa <q> [| opts]",   "interactive QA & user choice prompt"),
         cmd("/scan [path]",       "re-scan or switch project folder"),
         cmd("/watch",             "auto-review files as you save them"),
         sep(),
@@ -136,6 +137,8 @@ def chat_loop(agent: Agent):
         dispatch = {
             # Agent
             "run":        lambda a: print(f"\n{C.SUCCESS}📌 Result:{C.RESET}\n{agent.run(a)}\n") if a else print(warn("Usage: /run <task description>")),
+            "qa":         lambda a: print(agent.ask_user(a)),
+            "ask_user":   lambda a: print(agent.ask_user(a)),
             "scan":       lambda a: agent.rescan(a if a else None),
             "watch":      lambda a: agent.watch(a),
 
@@ -269,6 +272,7 @@ def main():
     parser.add_argument("--confirm-edits", action="store_true", help="Prompt for confirmation before applying file edits/writes")
     parser.add_argument("--tdd",           type=str,          help="Run autonomous self-healing TDD cycle for a feature or bug")
     parser.add_argument("--blast",         type=str,          help="Analyze AST blast radius for a symbol or file")
+    parser.add_argument("--qa",            type=str,          help="Prompt interactive QA question with optional piped choices (e.g. 'DB? | SQLite | Postgres')")
     parser.add_argument("--install-hook",  action="store_true", help="Install git pre-commit hook in this project")
     parser.add_argument("--strict-hook",   action="store_true", help="Install hook in STRICT mode (blocks commits on issues)")
     parser.add_argument("--remove-hook",   action="store_true", help="Remove the git pre-commit hook")
@@ -333,6 +337,9 @@ def main():
         return
     if args.blast:
         agent.blast(args.blast)
+        return
+    if args.qa:
+        print(agent.ask_user(args.qa))
         return
 
     chat_loop(agent)

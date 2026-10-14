@@ -620,6 +620,7 @@ body {
       <button class="cmd-btn" onclick="insertCmd('/test')"    title="Generate tests"><span class="cmd-icon">🧪</span>/test <span class="cmd-badge">file</span></button>
       <button class="cmd-btn" onclick="insertCmd('/tdd')"     title="Autonomous Self-Healing TDD"><span class="cmd-icon">🔄</span>/tdd <span class="cmd-badge">task</span></button>
       <button class="cmd-btn" onclick="insertCmd('/blast')"   title="AST Blast Radius Analysis"><span class="cmd-icon">💥</span>/blast <span class="cmd-badge">sym</span></button>
+      <button class="cmd-btn" onclick="insertCmd('/qa ')"      title="Interactive Question / User Input"><span class="cmd-icon">❓</span>/qa <span class="cmd-badge">question</span></button>
       <button class="cmd-btn" onclick="insertCmd('/refactor')"><span class="cmd-icon">♻️</span>/refactor <span class="cmd-badge">file</span></button>
       <button class="cmd-btn" onclick="insertCmd('/security')"><span class="cmd-icon">🔒</span>/security</button>
       <button class="cmd-btn" onclick="insertCmd('/git')"     title="Commit with AI message"><span class="cmd-icon">📦</span>/git</button>
@@ -694,12 +695,12 @@ body {
           or use <strong>Run Task</strong> mode for autonomous multi-step execution.
         </p>
         <div class="quick-cmds">
+          <span class="quick-chip" onclick="insertCmd('/qa Which database should we use? | SQLite | PostgreSQL | Redis')">/qa DB options</span>
+          <span class="quick-chip" onclick="insertCmd('/tdd ')">/tdd &lt;task&gt;</span>
           <span class="quick-chip" onclick="sendMessage('/review main.py')">/review main.py</span>
           <span class="quick-chip" onclick="sendMessage('/stats')">/stats</span>
-          <span class="quick-chip" onclick="sendMessage('what does this project do?')">what does this project do?</span>
           <span class="quick-chip" onclick="sendMessage('/git')">/git</span>
           <span class="quick-chip" onclick="sendMessage('/security')">/security</span>
-          <span class="quick-chip" onclick="sendMessage('/time')">/time</span>
         </div>
       </div>
     </div>

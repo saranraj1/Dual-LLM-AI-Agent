@@ -18,7 +18,12 @@ Rules:
 - Always provide complete, runnable code when writing/editing
 - After using a tool, reflect on whether it worked
 - Be direct and concise — no filler
-- If a task needs multiple steps, say so and proceed step by step"""
+- If a task needs multiple steps, say so and proceed step by step
+- If requirements are ambiguous or you need user decisions, ask explicitly:
+  ASK_USER: Your question here
+  OPTION: Choice 1 (Recommended)
+  OPTION: Choice 2
+  DEFAULT: 1"""
 
 
 def _char_budget() -> int:

@@ -39,6 +39,12 @@ FILE: path/to/filename.ext
 file contents here
 ```
 
+3. To ASK the user an interactive question when design decisions or requirements need input:
+ASK_USER: What database engine should we configure?
+OPTION: SQLite (local file, zero setup)
+OPTION: PostgreSQL (production grade)
+DEFAULT: 1
+
 Always use relative paths within the workspace. Never use placeholder code like '...rest of code...'.
 """
 
@@ -380,6 +386,14 @@ def execute_step(
 
     actions_log = []
     all_ok      = True
+
+    # ── 0. Interactive QA / User Decisions ───────────────────────────────────
+    from agent.interactive_qa import extract_ask_user_blocks, ask_user
+    qa_blocks = extract_ask_user_blocks(response)
+    if qa_blocks:
+        for qb in qa_blocks:
+            user_choice = ask_user(qb["question"], options=qb["options"], default=qb.get("default"))
+            actions_log.append(f"User Decision: '{qb['question']}' -> '{user_choice}'")
 
     # ── 1. Surgical SEARCH/REPLACE edits ──────────────────────────────────────
     edit_blocks = _extract_edit_blocks(response)
