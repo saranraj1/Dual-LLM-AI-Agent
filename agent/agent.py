@@ -21,7 +21,7 @@ from agent.executor   import execute_step
 from agent.reflection import reflect, format_reflection, ReflectionResult
 from agent.commands import (
     # Legacy core
-    cmd_diff, cmd_history, cmd_undo, cmd_explain,
+    cmd_diff, cmd_history, cmd_undo, cmd_checkpoints, cmd_explain,
     cmd_test, cmd_fix, cmd_todo,
     # Code quality
     cmd_review, cmd_optimize, cmd_refactor, cmd_security, cmd_format, cmd_lint,
@@ -145,6 +145,7 @@ class Agent:
     def diff(self, args):         return cmd_diff(self, args)
     def history(self, args):      return cmd_history(self, args)
     def undo(self, args):         return cmd_undo(self, args)
+    def checkpoints(self, args):  return cmd_checkpoints(self, args)
     def explain(self, args):      return cmd_explain(self, args)
     def test(self, args):         return cmd_test(self, args)
     def fix(self, args):          return cmd_fix(self, args)

@@ -189,6 +189,13 @@ def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -
     cwd_path = Path(cwd).resolve()
     accept_all = not confirm
 
+    if edit_blocks:
+        try:
+            from tools.checkpoint_tools import create_checkpoint
+            create_checkpoint(description=f"Auto-checkpoint before editing {len(edit_blocks)} block(s)", root_dir=cwd)
+        except Exception:
+            pass
+
     for eb in edit_blocks:
         path = eb["path"].strip().replace("\\", "/")
         if ":" in path:
@@ -244,6 +251,18 @@ def _auto_edit_files(edit_blocks: List[Dict], cwd: str, confirm: bool = False) -
         if r["ok"]:
             print(f"   ✏️  Surgically edited: {r['path']}")
             edited.append(r["path"])
+            try:
+                from tools.preflight_tools import preflight_check_file
+                p_res = preflight_check_file(str(target_path))
+                if not p_res.get("valid", True):
+                    repaired = p_res.get("auto_repaired_content")
+                    if repaired:
+                        target_path.write_text(repaired, encoding="utf-8")
+                        print(f"   🛠️  Pre-flight: auto-repaired syntax in {path}")
+                    else:
+                        print(f"   ⚠️  Pre-flight diagnostic: {p_res.get('error', 'Syntax error')}")
+            except Exception:
+                pass
         else:
             print(f"   ⚠️  Edit failed: {r['error']}")
     return edited
@@ -254,6 +273,13 @@ def _auto_write_files(file_blocks: List[Dict], cwd: str, confirm: bool = False) 
     written = []
     cwd_path = Path(cwd).resolve()
     accept_all = not confirm
+
+    if file_blocks:
+        try:
+            from tools.checkpoint_tools import create_checkpoint
+            create_checkpoint(description=f"Auto-checkpoint before writing {len(file_blocks)} file(s)", root_dir=cwd)
+        except Exception:
+            pass
 
     for fb in file_blocks:
         path = fb["path"].strip().replace("\\", "/")
@@ -285,6 +311,18 @@ def _auto_write_files(file_blocks: List[Dict], cwd: str, confirm: bool = False) 
         if r["ok"]:
             print(f"   📝 Written: {r['path']}")
             written.append(r["path"])
+            try:
+                from tools.preflight_tools import preflight_check_file
+                p_res = preflight_check_file(str(target_path))
+                if not p_res.get("valid", True):
+                    repaired = p_res.get("auto_repaired_content")
+                    if repaired:
+                        target_path.write_text(repaired, encoding="utf-8")
+                        print(f"   🛠️  Pre-flight: auto-repaired syntax in {path}")
+                    else:
+                        print(f"   ⚠️  Pre-flight diagnostic: {p_res.get('error', 'Syntax error')}")
+            except Exception:
+                pass
         else:
             print(f"   ⚠️  Write failed: {r['error']}")
     return written

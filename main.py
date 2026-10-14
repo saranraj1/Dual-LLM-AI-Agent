@@ -156,11 +156,12 @@ def chat_loop(agent: Agent):
             "todo":       lambda a: print(agent.todo(a)),
 
             # Files & translation
-            "explain":    lambda a: agent.explain(a),
-            "diff":       lambda a: print(agent.diff(a)),
-            "undo":       lambda a: print(agent.undo(a)),
-            "run_file":   lambda a: print(agent.run_file(a)),
-            "translate":  lambda a: print(agent.translate(a)),
+            "explain":     lambda a: agent.explain(a),
+            "diff":        lambda a: print(agent.diff(a)),
+            "undo":        lambda a: print(agent.undo(a)),
+            "checkpoints": lambda a: print(agent.checkpoints(a)),
+            "run_file":    lambda a: print(agent.run_file(a)),
+            "translate":   lambda a: print(agent.translate(a)),
 
             # Project
             "docs":       lambda a: agent.docs(a),

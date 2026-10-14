@@ -65,7 +65,8 @@ _CMD_MAP = {
     "todo":       "todo",
     "explain":    "explain",
     "diff":       "diff",
-    "undo":       "undo",
+    "undo":        "undo",
+    "checkpoints": "checkpoints",
     "run_file":   "run_file",
     "run-file":   "run_file",
     "translate":  "translate",
@@ -584,6 +585,50 @@ async def trigger_qa_ask(req: QAPromptRequest):
         formatted += " | " + " | ".join(req.options)
     result = agent.ask_user(formatted)
     return {"ok": True, "question": req.question, "result": result}
+
+
+# ── Checkpoint & Pre-flight API Endpoints ─────────────────────────────────────
+
+class UndoRequest(BaseModel):
+    checkpoint_id: Optional[str] = None
+    target_file: Optional[str] = None
+
+class PreflightRequest(BaseModel):
+    file_path: Optional[str] = "snippet.py"
+    content: Optional[str] = None
+
+
+@app.get("/checkpoints")
+@app.get("/api/checkpoints")
+async def get_checkpoints_endpoint(limit: int = 10):
+    """List recent shadow git checkpoints available for rollback."""
+    from tools.checkpoint_tools import list_checkpoints
+    agent = get_agent()
+    cps = list_checkpoints(limit=limit, root_dir=agent.workspace)
+    return {"ok": True, "count": len(cps), "checkpoints": cps}
+
+
+@app.post("/checkpoints/undo")
+@app.post("/api/checkpoints/undo")
+async def undo_checkpoint_endpoint(req: Optional[UndoRequest] = None):
+    """Restore files to a previous checkpoint."""
+    from tools.checkpoint_tools import restore_checkpoint
+    agent = get_agent()
+    cid = req.checkpoint_id if req else None
+    tf = req.target_file if req else None
+    res = restore_checkpoint(checkpoint_id_or_index=cid, target_file=tf, root_dir=agent.workspace)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error", "Undo failed"))
+    return res
+
+
+@app.post("/preflight")
+@app.post("/api/preflight")
+async def preflight_endpoint(req: PreflightRequest):
+    """Run pre-flight compiler syntax diagnostics on code content or file."""
+    from tools.preflight_tools import preflight_check_file
+    res = preflight_check_file(req.file_path or "snippet.py", proposed_content=req.content)
+    return res
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────

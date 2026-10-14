@@ -37,6 +37,7 @@ from agent.commands.files import (
     cmd_explain,
     cmd_diff,
     cmd_undo,
+    cmd_checkpoints,
     cmd_run_file,
     cmd_translate,
 )
@@ -69,7 +70,7 @@ from agent.interactive_qa import cmd_ask_user
 
 __all__ = [
     # Core / files
-    "cmd_diff", "cmd_history", "cmd_undo", "cmd_explain",
+    "cmd_diff", "cmd_history", "cmd_undo", "cmd_checkpoints", "cmd_explain",
     # Code quality
     "cmd_review", "cmd_optimize", "cmd_refactor", "cmd_security",
     "cmd_format", "cmd_lint", "cmd_test", "cmd_fix", "cmd_todo",

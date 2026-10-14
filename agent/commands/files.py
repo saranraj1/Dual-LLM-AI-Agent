@@ -67,26 +67,64 @@ def cmd_diff(agent, args: str) -> str:
         return r["stdout"] or r["stderr"] or "No changes."
 
 
-# ── /undo ─────────────────────────────────────────────────────────────────────
+# ── /undo and /checkpoints ────────────────────────────────────────────────────
 
 def cmd_undo(agent, args: str) -> str:
-    target = args.strip()
-    if not target:
-        return "Usage: /undo <filename>"
+    """
+    Restore files to a previous checkpoint.
+    Usage:
+      /undo               - Restore whole workspace to the previous turn checkpoint
+      /undo 2             - Restore to 2 checkpoints ago
+      /undo <filename>    - Restore a specific file from the checkpoint or legacy backup
+    """
+    arg = args.strip()
+    from tools.checkpoint_tools import restore_checkpoint
 
-    path = os.path.join(agent.workspace, target) if not os.path.isabs(target) else target
+    # 1. Whole workspace rollback (if empty or numeric index)
+    if not arg or arg.isdigit():
+        res = restore_checkpoint(checkpoint_id_or_index=arg or "1", root_dir=agent.workspace)
+        if res.get("ok"):
+            cp = res.get("restored_checkpoint", {})
+            return f"✅ {res.get('message', 'Workspace restored to checkpoint.')}\n(Commit: {cp.get('commit', '')[:7]} at {cp.get('timestamp', '')[:19]})"
+        return f"❌ {res.get('error', 'Failed to restore checkpoint.')}"
+
+    # 2. Specific file rollback via shadow checkpoint
+    res = restore_checkpoint(checkpoint_id_or_index=None, target_file=arg, root_dir=agent.workspace)
+    if res.get("ok"):
+        return f"✅ {res.get('message', f'Restored {arg} from checkpoint.')}"
+
+    # 3. Fallback to legacy backup if checkpoint failed
+    path = os.path.join(agent.workspace, arg) if not os.path.isabs(arg) else arg
     backup_dir = os.path.join(agent.workspace, ".agent_backups")
-    backup = os.path.join(backup_dir, target.replace(os.sep, "_") + ".bak")
+    backup = os.path.join(backup_dir, arg.replace(os.sep, "_") + ".bak")
 
-    if not os.path.exists(backup):
-        return f"❌ No backup found for {target}. Backups are created automatically before the agent edits a file."
+    if os.path.exists(backup):
+        try:
+            import shutil
+            shutil.copy2(backup, path)
+            return f"✅ {arg} restored from legacy backup."
+        except Exception as e:
+            return f"❌ Could not restore: {e}"
 
-    try:
-        import shutil
-        shutil.copy2(backup, path)
-        return f"✅ {target} restored from backup."
-    except Exception as e:
-        return f"❌ Could not restore: {e}"
+    return f"❌ No checkpoint or backup found for '{arg}'. Run /checkpoints to list available checkpoints."
+
+
+def cmd_checkpoints(agent, args: str) -> str:
+    """List recent shadow git checkpoints available for rollback."""
+    from tools.checkpoint_tools import list_checkpoints
+    limit = int(args.strip()) if args.strip().isdigit() else 10
+    cps = list_checkpoints(limit=limit, root_dir=agent.workspace)
+    if not cps:
+        return "ℹ️ No checkpoints recorded yet in this workspace. Checkpoints are automatically generated before code edits."
+
+    lines = [f"📌 Recent Workspace Checkpoints ({len(cps)} available):"]
+    for i, cp in enumerate(cps, 1):
+        ts = cp.get("timestamp", "")[:19].replace("T", " ")
+        commit = cp.get("commit", "")[:7]
+        desc = cp.get("description", "Checkpoint")
+        lines.append(f"  {i}. [{commit}] {ts} — {desc}")
+    lines.append("\nTip: Run '/undo' to revert the last action or '/undo <number>' to revert to a specific state.")
+    return "\n".join(lines)
 
 
 # ── /run-file ─────────────────────────────────────────────────────────────────
