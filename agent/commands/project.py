@@ -434,6 +434,9 @@ def cmd_diagram(agent, args: str) -> str:
 2. A Mermaid diagram (graph TD format) of the same architecture
    Save it as FILE: docs/architecture.md
 
+CRITICAL: Do NOT emit <tool_call> tags. All project structure and dependencies are already provided below.
+Output the complete ASCII diagram and Mermaid diagram directly and immediately.
+
 The file must include:
 - The AI-generated ASCII diagram
 - The AI-generated Mermaid diagram
@@ -458,7 +461,10 @@ Code context:
     print("\n📐 Generating architecture diagram...")
     print("Agent › ", end="", flush=True)
     full = ""
-    for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+    from agent.tool_interceptor import resolve_tool_calls_stream
+    from core.llm import get_backend
+    backend = get_backend()
+    for token in resolve_tool_calls_stream(prompt, system=SYSTEM_PROMPT, workspace=agent.workspace, backend=backend):
         print(token, end="", flush=True)
         full += token
     print()

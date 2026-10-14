@@ -366,6 +366,26 @@ def parse_react_step(llm_response: str) -> Optional[Dict[str, Any]]:
 
         return {"action": action, "input": parsed_args}
 
+    # 3. Qwen XML tool_call match
+    from agent.tool_interceptor import extract_qwen_tool_calls
+    qwen_calls = extract_qwen_tool_calls(text)
+    if qwen_calls:
+        first = qwen_calls[0]
+        action_map = {
+            "list_files": "file_search",
+            "ls": "file_search",
+            "dir": "file_search",
+            "cat": "read_file",
+            "view_file": "read_file",
+            "bash": "shell_command",
+            "terminal": "shell_command",
+            "run_command": "shell_command",
+            "replace_in_file": "edit_file",
+            "create_file": "write_file",
+        }
+        action = action_map.get(first["function"].lower(), first["function"])
+        return {"action": action, "input": first["parameters"]}
+
     return None
 
 

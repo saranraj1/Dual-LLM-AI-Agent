@@ -64,6 +64,7 @@ coverage.xml
 
 # ── Agent runtime files ───────────────────────────────────────────────────────
 .agent_backups/
+.agent_checkpoints/
 chat_history.md
 installation_log.txt
 

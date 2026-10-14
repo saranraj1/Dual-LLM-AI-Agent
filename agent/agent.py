@@ -304,7 +304,8 @@ class Agent:
         backend = get_backend()
 
         from agent.executor import AUTONOMOUS_SYSTEM
-        for token in ask_stream(prompt, system=AUTONOMOUS_SYSTEM, backend=backend):
+        from agent.tool_interceptor import resolve_tool_calls_stream
+        for token in resolve_tool_calls_stream(prompt, system=AUTONOMOUS_SYSTEM, workspace=self.workspace, backend=backend):
             stream_token(token)
             full += token
         print()

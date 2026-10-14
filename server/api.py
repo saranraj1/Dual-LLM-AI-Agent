@@ -274,10 +274,26 @@ async def chat(req: ChatRequest):
                 code_context=code_ctx,
             )
 
+            from agent.tool_interceptor import resolve_tool_calls_stream
+            from core.llm import get_backend
+            from agent.executor import _extract_file_blocks, _auto_write_files, _extract_edit_blocks, _auto_edit_files
+
+            backend = get_backend()
             full = ""
-            for token in ask_stream(prompt, system=SYSTEM_PROMPT):
+            for token in resolve_tool_calls_stream(prompt, system=SYSTEM_PROMPT, workspace=agent.workspace, backend=backend):
                 full += token
                 yield token
+
+            # Auto-write files if generated in response
+            try:
+                f_blocks = _extract_file_blocks(full)
+                if f_blocks:
+                    _auto_write_files(f_blocks, agent.workspace, confirm=False)
+                e_blocks = _extract_edit_blocks(full)
+                if e_blocks:
+                    _auto_edit_files(e_blocks, agent.workspace, confirm=False)
+            except Exception as we:
+                log.warning("auto-write in chat error: %s", we)
 
             # Persist to memory
             try:
