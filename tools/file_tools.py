@@ -159,3 +159,100 @@ def build_context_string(scan_result: Dict, char_limit: int = 2500) -> str:
         parts.append(chunk)
         total += len(chunk)
     return "\n\n".join(parts)
+
+
+def replace_in_file(path: str, target: str, replacement: str) -> Dict:
+    """
+    Surgically replace an exact block of code inside a file.
+    Returns {ok, path, occurrences, error}.
+    """
+    if not ALLOW_WRITE:
+        return {"ok": False, "error": "Write disabled in settings.py (ALLOW_WRITE=False)"}
+    try:
+        p = Path(path).resolve()
+        if not p.exists():
+            return {"ok": False, "error": f"File not found: {path}"}
+        if not p.is_file():
+            return {"ok": False, "error": f"Not a file: {path}"}
+
+        content = p.read_text(encoding="utf-8", errors="ignore")
+        count = content.count(target)
+        if count == 1:
+            new_content = content.replace(target, replacement, 1)
+            p.write_text(new_content, encoding="utf-8")
+            return {"ok": True, "path": str(p), "occurrences": 1}
+
+        # Fallback: normalize CRLF <-> LF in case of Windows line-ending variance
+        c_norm = content.replace("\r\n", "\n")
+        t_norm = target.replace("\r\n", "\n")
+        r_norm = replacement.replace("\r\n", "\n")
+        count_norm = c_norm.count(t_norm)
+
+        if count_norm == 0:
+            return {
+                "ok": False,
+                "error": f"Target content not found in {p.name}. Ensure target matches exact lines and indentation.",
+                "occurrences": 0,
+            }
+        if count_norm > 1:
+            return {
+                "ok": False,
+                "error": f"Target content found {count_norm} times in {p.name}. Provide a more specific target block with surrounding context.",
+                "occurrences": count_norm,
+            }
+
+        new_norm = c_norm.replace(t_norm, r_norm, 1)
+        if "\r\n" in content:
+            new_norm = new_norm.replace("\n", "\r\n")
+        p.write_text(new_norm, encoding="utf-8")
+        return {"ok": True, "path": str(p), "occurrences": 1}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def get_repo_map(root: str, max_files: int = 40) -> str:
+    """
+    Generate a compact AST-based symbol map (classes, functions, methods)
+    for Python files in the workspace using the standard library ast.
+    """
+    import ast
+    root_path = Path(root).resolve()
+    if not root_path.exists():
+        return ""
+
+    lines = []
+    scanned = 0
+    for fp in sorted(root_path.rglob("*.py")):
+        if any(skip in fp.parts for skip in SKIP_DIRS):
+            continue
+        if scanned >= max_files:
+            break
+
+        try:
+            rel = str(fp.relative_to(root_path))
+            source = fp.read_text(encoding="utf-8", errors="ignore")
+            tree = ast.parse(source, filename=str(fp))
+        except Exception:
+            continue
+
+        file_symbols = []
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                methods = [
+                    f"    def {n.name}()"
+                    for n in node.body
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("__")
+                ]
+                method_str = ("\n" + "\n".join(methods[:4])) if methods else ""
+                file_symbols.append(f"  class {node.name}:{method_str}")
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not node.name.startswith("_"):
+                    file_symbols.append(f"  def {node.name}()")
+
+        if file_symbols:
+            lines.append(f"• {rel}:")
+            lines.extend(file_symbols[:6])
+            scanned += 1
+
+    return "\n".join(lines)
+

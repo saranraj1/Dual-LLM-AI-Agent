@@ -83,7 +83,7 @@ class ClipboardMonitor:
         self._callback  = on_code_detected
         self._last      = ""
         self._running   = False
-        self._enabled   = True
+        self._enabled   = False  # Disabled by default; turned on via /clip on
         self._thread: Optional[threading.Thread] = None
         self._lock      = threading.Lock()
 

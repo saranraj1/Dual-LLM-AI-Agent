@@ -24,13 +24,13 @@ class TestLLMFallback:
     def test_falls_back_to_groq_when_ollama_down(self):
         """When Ollama is not running, fallback to Groq automatically."""
         _cache.clear()
-        with patch("core.llm.is_running", return_value=False):
-            with patch("core.llm.is_groq_available", return_value=True):
-                with patch("core.llm._groq_ask", return_value="groq result") as mock_groq:
-                    with patch("core.llm._cache", {}):
-                        result = ask("test unique fallback XYZ999", backend="auto")
-        assert mock_groq.called or isinstance(result, str)  # either mocked or real call succeeded
-
+        with patch("core.llm._ollama_ask", side_effect=Exception("connection refused (500)")):
+            with patch("core.llm.is_running", return_value=False):
+                with patch("core.llm.is_groq_available", return_value=True):
+                    with patch("core.llm._groq_ask", return_value="groq result") as mock_groq:
+                        result = ask("test unique fallback XYZ999", backend="auto", use_cache=False)
+        assert result == "groq result"
+        assert mock_groq.called
 
     def test_groq_forced_backend(self):
         """When backend='groq', Groq is used regardless of Ollama status."""
@@ -50,8 +50,12 @@ class TestLLMFallback:
 
     def test_returns_error_string_when_both_unavailable(self):
         """When both backends fail, a graceful error string is returned (no crash)."""
-        with patch("core.llm.is_running", return_value=False):
-            with patch("core.llm.is_groq_available", return_value=False):
-                result = ask("test prompt fallback test 5", backend="auto")
+        _cache.clear()
+        with patch("core.llm._ollama_ask", side_effect=Exception("connection refused 500")):
+            with patch("core.llm._groq_ask", side_effect=Exception("groq unreachable")):
+                with patch("core.llm.is_running", return_value=False):
+                    with patch("core.llm.is_groq_available", return_value=False):
+                        result = ask("test prompt fallback test 5", backend="auto", use_cache=False)
         assert isinstance(result, str)
         assert len(result) > 0  # Should return error message, not raise exception
+

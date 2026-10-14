@@ -22,17 +22,19 @@ except ImportError:
     pass  # python-dotenv not installed — fall back to os.environ or hardcoded values
 
 # ── Local model (Ollama) ──────────────────────────────────────────────────────
-MODEL_NAME      = "phi3:mini"          # Recommended: fits GTX 1650 4GB, fast & capable
+MODEL_NAME      = os.getenv("LOCAL_MODEL", "phi3:mini")  # e.g., phi3:mini or qwen2.5-coder:7b
 OLLAMA_HOST     = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-CONTEXT_WINDOW  = 2048                # phi3:mini handles 128k but we cap for speed
-MAX_TOKENS      = 512                 # max tokens per response
+CONTEXT_WINDOW  = int(os.getenv("CONTEXT_WINDOW", "8192"))   # 8k default for modern local models
+MAX_TOKENS      = int(os.getenv("MAX_TOKENS", "2048"))       # allows complete functions/classes
 
 # ── Groq API (cloud, free tier — 300+ tok/s) ─────────────────────────────────
 # Key is read from .env file — NEVER hardcode it here
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL      = "llama-3.3-70b-versatile"   # best free model on Groq
+GROQ_MODEL      = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")   # SOTA coding model on Groq
 GROQ_HOST       = "https://api.groq.com/openai/v1"
+GROQ_MAX_TOKENS = int(os.getenv("GROQ_MAX_TOKENS", "4096"))
 AUTO_FALLBACK   = True                # auto-switch to Groq if Ollama fails/OOM
+
 
 # ── Hardware (GTX 1650 + Ryzen 5660H) ────────────────────────────────────────
 GPU_LAYERS      = 33                  # phi3:mini (3.8B) fits fully in 4GB VRAM

@@ -92,3 +92,81 @@ class TestScanCodebase:
             result = scan_codebase(tmpdir)
             assert result["ok"] is True
             assert result["count"] == 0
+
+
+class TestReplaceInFile:
+    def test_replaces_single_exact_block(self):
+        from tools.file_tools import replace_in_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = os.path.join(tmpdir, "calc.py")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write("def add(a, b):\n    return a - b\n")
+
+            res = replace_in_file(p, "return a - b", "return a + b")
+            assert res["ok"] is True
+            assert res["occurrences"] == 1
+            with open(p, "r", encoding="utf-8") as f:
+                assert "return a + b" in f.read()
+
+    def test_returns_error_when_target_not_found(self):
+        from tools.file_tools import replace_in_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = os.path.join(tmpdir, "calc.py")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write("def foo():\n    pass\n")
+
+            res = replace_in_file(p, "def non_existent():", "something")
+            assert res["ok"] is False
+            assert "Target content not found" in res["error"]
+
+    def test_returns_error_when_target_occurs_multiple_times(self):
+        from tools.file_tools import replace_in_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = os.path.join(tmpdir, "dups.py")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write("x = 1\nx = 1\n")
+
+            res = replace_in_file(p, "x = 1", "x = 2")
+            assert res["ok"] is False
+            assert "found 2 times" in res["error"]
+
+    def test_replaces_with_crlf_normalization(self):
+        from tools.file_tools import replace_in_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = os.path.join(tmpdir, "crlf.py")
+            # Write with explicit Windows CRLF
+            with open(p, "wb") as f:
+                f.write(b"def greet():\r\n    return 'hi'\r\n")
+
+            # Target uses standard LF
+            res = replace_in_file(p, "return 'hi'", "return 'hello'")
+            assert res["ok"] is True
+            content = open(p, "r", encoding="utf-8").read()
+            assert "return 'hello'" in content
+
+
+class TestGetRepoMap:
+    def test_generates_symbols_for_classes_and_functions(self):
+        from tools.file_tools import get_repo_map
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = os.path.join(tmpdir, "sample.py")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(
+                    "class Calculator:\n"
+                    "    def add(self, a, b):\n"
+                    "        return a + b\n"
+                    "\n"
+                    "def helper_func():\n"
+                    "    pass\n"
+                    "\n"
+                    "def _private_func():\n"
+                    "    pass\n"
+                )
+
+            repo_map = get_repo_map(tmpdir)
+            assert "sample.py:" in repo_map
+            assert "class Calculator:" in repo_map
+            assert "def add()" in repo_map
+            assert "def helper_func()" in repo_map
+            assert "_private_func" not in repo_map
+

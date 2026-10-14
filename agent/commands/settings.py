@@ -1,10 +1,38 @@
-"""agent/commands/settings.py — /mode /export /config /benchmark"""
+"""agent/commands/settings.py — /mode /export /config /benchmark /history"""
 
 import os
 import time
 from pathlib import Path
 from core.llm import ask, ask_stream
 from core.prompt_builder import SYSTEM_PROMPT
+
+
+# ── /history ──────────────────────────────────────────────────────────────────
+
+def cmd_history(agent, args: str) -> str:
+    """
+    Show past tasks and conversations from long-term memory.
+    Usage: /history        → show last 10 interactions
+           /history 20     → show last 20
+    """
+    try:
+        n = int(args.strip()) if args.strip().isdigit() else 10
+    except Exception:
+        n = 10
+
+    turns = agent.long_mem.get_turns(n=n * 2)
+    if not turns:
+        return "📭 No history yet. Start chatting!"
+
+    lines = []
+    for t in turns:
+        role    = "You" if t["role"] == "user" else "Agent"
+        ts      = t.get("ts", "")[:16].replace("T", " ")
+        content = t["content"][:120].replace("\n", " ")
+        lines.append(f"[{ts}] {role}: {content}")
+
+    return f"📜 Last {len(lines)} messages:\n\n" + "\n".join(lines)
+
 
 MODES = {
     "debug": (

@@ -31,6 +31,7 @@ def build(
     task: str,
     memory_context: str  = "",
     code_context: str    = "",
+    repo_map: str        = "",
     tool_results: str    = "",
     plan: List[str]      = None,
     current_step: str    = "",
@@ -38,7 +39,7 @@ def build(
     """
     Assemble the full prompt. Parts are trimmed if budget is tight.
     Order of priority (most important last = closest to the model's attention):
-      memory → code → tool_results → plan → task
+      memory → repo_map → code → tool_results → plan → task
     """
     budget = _char_budget()
     parts  = []
@@ -46,14 +47,19 @@ def build(
     # 1. Memory (oldest, lowest priority — trim first)
     if memory_context:
         chunk = f"## Memory (past context)\n{memory_context}"
+        parts.append(_trim(chunk, budget // 5))
+
+    # 2. Workspace Symbol Map (AST-level structural outline)
+    if repo_map:
+        chunk = f"## Workspace Symbol Map\n{repo_map}"
         parts.append(_trim(chunk, budget // 4))
 
-    # 2. Code context
+    # 3. Code context
     if code_context:
         chunk = f"## Codebase Context\n{code_context}"
         parts.append(_trim(chunk, budget // 3))
 
-    # 3. Tool output from previous step
+    # 4. Tool output from previous step
     if tool_results:
         chunk = f"## Tool Output\n{tool_results}"
         parts.append(_trim(chunk, budget // 5))

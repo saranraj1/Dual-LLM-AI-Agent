@@ -43,7 +43,7 @@ from agent.watcher      import cmd_watch
 from agent.daily_digest import show_digest
 from memory.short_memory import ShortMemory
 from memory.long_memory  import LongMemory
-from tools.file_tools    import scan_codebase, build_context_string, list_dir
+from tools.file_tools    import scan_codebase, build_context_string, list_dir, get_repo_map
 from tools.clipboard_monitor import ClipboardMonitor
 from tools.notifications  import notify_task_done, notify_info
 from tools.knowledge_base import kb_context
@@ -63,6 +63,7 @@ class Agent:
         self.short_mem       = ShortMemory()
         self.long_mem        = LongMemory()
         self.code_context    = ""
+        self.repo_map        = ""
         self.dir_tree        = ""
         self._current_mode   = "normal"
         self._print          = print
@@ -96,12 +97,19 @@ class Agent:
             self._print(f"   {C.GRAY}📄 Indexed: {scan['count']} code files{C.RESET}")
         else:
             self._print(warn(f"Scan failed: {scan.get('error')}"))
+
+        self.repo_map = get_repo_map(self.workspace)
+        if self.repo_map:
+            symbols_count = len(self.repo_map.splitlines())
+            self._print(f"   {C.GRAY}🗺️  Symbol map: {symbols_count} lines{C.RESET}")
+
         self._print(f"   {C.SUCCESS}✅ Workspace loaded — agent is ready.{C.RESET}\n")
 
     def _refresh_scan(self):
         scan = scan_codebase(self.workspace)
         if scan["ok"]:
             self.code_context = build_context_string(scan, char_limit=800)
+        self.repo_map = get_repo_map(self.workspace)
 
     # ── Clipboard callback ─────────────────────────────────────────────────────
 
@@ -192,6 +200,7 @@ class Agent:
                         task            = task,
                         memory_context  = self._get_memory_context(),
                         code_context    = code_context,
+                        repo_map        = self.repo_map,
                         cwd             = self.workspace,
                         previous_result = accumulated[-600:] if accumulated else ""
                     )
@@ -253,7 +262,12 @@ class Agent:
         if convo_history:
             message = convo_history + "\n\nUser: " + message
 
-        prompt = build(task=message, memory_context=mem, code_context=full_code_ctx)
+        prompt = build(
+            task           = message,
+            memory_context = mem,
+            code_context   = full_code_ctx,
+            repo_map       = self.repo_map,
+        )
 
         print(f"\n{agent_label()}", end="", flush=True)
         full    = ""
@@ -271,7 +285,21 @@ class Agent:
         self.long_mem.add("assistant",  full[:400])
         self.long_mem.save()
 
-        from agent.executor import _extract_file_blocks, _auto_write_files, _extract_pip_packages, _auto_install
+        from agent.executor import (
+            _extract_edit_blocks, _auto_edit_files,
+            _extract_file_blocks, _auto_write_files,
+            _extract_pip_packages, _auto_install
+        )
+
+        edit_blocks = _extract_edit_blocks(full)
+        if edit_blocks:
+            print(f"\n{C.CYAN}✏️  Auto-editing files from response...{C.RESET}")
+            for eb in edit_blocks:
+                abs_path = os.path.join(self.workspace, eb["path"])
+                _backup_file(abs_path, self.workspace)
+            _auto_edit_files(edit_blocks, self.workspace)
+            self._refresh_scan()
+
         file_blocks = _extract_file_blocks(full)
         if file_blocks:
             print(f"\n{C.CYAN}📝 Auto-writing files from response...{C.RESET}")

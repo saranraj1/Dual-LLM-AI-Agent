@@ -28,8 +28,9 @@ from typing import Generator, Optional
 from config.settings import (
     MODEL_NAME, OLLAMA_HOST, CONTEXT_WINDOW, MAX_TOKENS,
     GPU_LAYERS, CPU_THREADS, NUM_BATCH,
-    GROQ_API_KEY, GROQ_MODEL, GROQ_HOST, AUTO_FALLBACK,
+    GROQ_API_KEY, GROQ_MODEL, GROQ_HOST, GROQ_MAX_TOKENS, AUTO_FALLBACK,
 )
+
 from core.exceptions import LLMError, BackendUnavailableError
 from core.retry import with_retry, RETRYABLE_STATUSES
 from core.logger import get_logger

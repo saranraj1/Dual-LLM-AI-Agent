@@ -18,20 +18,80 @@ from tools import file_tools, code_tools, terminal_tools
 
 
 # ── Autonomous write prompt ───────────────────────────────────────────────────
-# Tell the LLM to always output files in a parseable format
+# Tell the LLM to output files in a parseable format
 AUTO_WRITE_INSTRUCTION = """
-When creating or editing files, ALWAYS use this exact format:
+When creating or editing code, choose the appropriate format:
+
+1. For SURGICAL EDITS to existing files (preferred for modifying existing code):
+FILE: path/to/filename.ext
+<<<<<<< SEARCH
+exact lines to be replaced
+=======
+new replacement lines
+>>>>>>> REPLACE
+
+2. For NEW FILES or complete file rewrites:
 FILE: path/to/filename.ext
 ```
 file contents here
 ```
-You can output multiple files this way. Always use real file paths.
+
+Always use relative paths within the workspace. Never use placeholder code like '...rest of code...'.
 """
 
 AUTONOMOUS_SYSTEM = SYSTEM_PROMPT + "\n" + AUTO_WRITE_INSTRUCTION
 
 
 # ── Parsers ───────────────────────────────────────────────────────────────────
+
+def _extract_edit_blocks(text: str) -> List[Dict]:
+    """
+    Find all surgical SEARCH/REPLACE blocks in LLM output.
+    Returns list of {"path": path, "target": target, "replacement": replacement}.
+    """
+    blocks = []
+    lines = text.splitlines(keepends=True)
+    current_file = None
+    i = 0
+    n = len(lines)
+
+    while i < n:
+        line = lines[i]
+        file_match = re.match(r'^\s*FILE:\s*[`"]?([^`"\r\n]+)[`"]?', line)
+        if file_match:
+            current_file = file_match.group(1).strip()
+            i += 1
+            continue
+
+        stripped = line.strip()
+        if re.match(r'^<{5,9}\s*SEARCH', stripped):
+            i += 1
+            search_lines = []
+            while i < n and not re.match(r'^={5,9}$', lines[i].strip()):
+                search_lines.append(lines[i])
+                i += 1
+
+            if i < n and re.match(r'^={5,9}$', lines[i].strip()):
+                i += 1
+                replace_lines = []
+                while i < n and not re.match(r'^>{5,9}\s*REPLACE', lines[i].strip()):
+                    replace_lines.append(lines[i])
+                    i += 1
+
+                if i < n and re.match(r'^>{5,9}\s*REPLACE', lines[i].strip()):
+                    if current_file:
+                        blocks.append({
+                            "path": current_file,
+                            "target": "".join(search_lines),
+                            "replacement": "".join(replace_lines)
+                        })
+            i += 1
+            continue
+
+        i += 1
+
+    return blocks
+
 
 def _extract_file_blocks(text: str) -> List[Dict]:
     """
@@ -82,26 +142,60 @@ def _detect_missing_module(stderr: str) -> Optional[str]:
 
 # ── Auto-actions ──────────────────────────────────────────────────────────────
 
+def _auto_edit_files(edit_blocks: List[Dict], cwd: str) -> List[str]:
+    """Apply surgical search/replace edit blocks to files safely."""
+    edited = []
+    cwd_path = Path(cwd).resolve()
+    for eb in edit_blocks:
+        path = eb["path"].strip().replace("\\", "/")
+        if ":" in path:
+            path = path.split(":", 1)[1]
+        path = path.lstrip("/")
+
+        target_path = (cwd_path / path).resolve()
+        if not target_path.is_relative_to(cwd_path):
+            print(f"   ⚠️  Blocked unsafe path escaping workspace: {eb['path']}")
+            continue
+
+        if not target_path.exists():
+            print(f"   ⚠️  Cannot edit nonexistent file: {eb['path']}")
+            continue
+
+        r = file_tools.replace_in_file(str(target_path), eb["target"], eb["replacement"])
+        if r["ok"]:
+            print(f"   ✏️  Surgically edited: {r['path']}")
+            edited.append(r["path"])
+        else:
+            print(f"   ⚠️  Edit failed: {r['error']}")
+    return edited
+
+
 def _auto_write_files(file_blocks: List[Dict], cwd: str) -> List[str]:
-    """Write all detected file blocks to disk. Returns list of written paths."""
+    """Write all detected file blocks to disk safely. Returns list of written paths."""
     written = []
+    cwd_path = Path(cwd).resolve()
     for fb in file_blocks:
-        path = fb["path"]
+        path = fb["path"].strip()
         # Force all paths to be relative to the workspace (cwd)
         # Strip leading slashes or Windows drive letters from the LLM's hallucinated paths
         path = path.replace("\\", "/")
         if ":" in path:
             path = path.split(":", 1)[1]
         path = path.lstrip("/")
-        
-        path = os.path.join(cwd, path)
-        r = file_tools.write_file(path, fb["content"])
+
+        target_path = (cwd_path / path).resolve()
+        if not target_path.is_relative_to(cwd_path):
+            print(f"   ⚠️  Blocked unsafe path escaping workspace: {fb['path']}")
+            continue
+
+        r = file_tools.write_file(str(target_path), fb["content"])
         if r["ok"]:
             print(f"   📝 Written: {r['path']}")
             written.append(r["path"])
         else:
             print(f"   ⚠️  Write failed: {r['error']}")
     return written
+
 
 
 def _auto_install(packages: List[str], pkg_type: str = "pip") -> List[str]:
@@ -154,28 +248,34 @@ def execute_step(
     task: str,
     memory_context: str  = "",
     code_context: str    = "",
+    repo_map: str        = "",
     cwd: str             = ".",
     previous_result: str = ""
 ) -> Dict:
     """
     Fully autonomous step execution:
-    1. Ask LLM with enriched prompt
-    2. Parse response for file blocks → write them
-    3. Parse for pip/npm → install them
-    4. Parse for code → run it
-    5. Return everything that happened
+    1. Ask LLM with enriched prompt (including repo map and code context)
+    2. Parse response for surgical edit blocks → apply them
+    3. Parse response for file blocks → write them
+    4. Parse for pip/npm → install them
+    5. Parse for code → run it (if step requests execution or standalone runnable)
+    6. Return everything that happened
     """
 
-    # Always inject codebase scan into every step
+    # Always inject codebase scan and repo map into every step if not provided
     if not code_context:
         scan = file_tools.scan_codebase(cwd)
         if scan["ok"]:
             code_context = file_tools.build_context_string(scan, char_limit=1800)
 
+    if not repo_map:
+        repo_map = file_tools.get_repo_map(cwd)
+
     prompt = build(
         task           = step,
         memory_context = memory_context,
         code_context   = code_context,
+        repo_map       = repo_map,
         tool_results   = previous_result[-600:] if previous_result else ""
     )
 
@@ -188,46 +288,63 @@ def execute_step(
     actions_log = []
     all_ok      = True
 
-    # ── 1. Auto-write any FILE: blocks ────────────────────────────────────────
+    # ── 1. Surgical SEARCH/REPLACE edits ──────────────────────────────────────
+    edit_blocks = _extract_edit_blocks(response)
+    if edit_blocks:
+        edited = _auto_edit_files(edit_blocks, cwd)
+        if edited:
+            actions_log.append(f"Files edited: {', '.join(edited)}")
+
+    # ── 2. Auto-write any new or full FILE: blocks ────────────────────────────
     file_blocks = _extract_file_blocks(response)
     if file_blocks:
         written = _auto_write_files(file_blocks, cwd)
         if written:
             actions_log.append(f"Files written: {', '.join(written)}")
-        # Refresh code context after writing
+
+    # Refresh code context and repo map if files were modified
+    if edit_blocks or file_blocks:
         scan = file_tools.scan_codebase(cwd)
         if scan["ok"]:
             code_context = file_tools.build_context_string(scan, char_limit=1800)
+        repo_map = file_tools.get_repo_map(cwd)
 
-    # ── 2. Auto-install pip packages ──────────────────────────────────────────
+    # ── 3. Auto-install pip packages ──────────────────────────────────────────
     pip_pkgs = _extract_pip_packages(response)
     if pip_pkgs:
         results = _auto_install(pip_pkgs, "pip")
         actions_log.extend(results)
 
-    # ── 3. Auto-install npm packages ──────────────────────────────────────────
+    # ── 4. Auto-install npm packages ──────────────────────────────────────────
     npm_pkgs = _extract_npm_packages(response)
     if npm_pkgs:
         results = _auto_install(npm_pkgs, "npm")
         actions_log.extend(results)
 
-    # ── 4. Auto-run Python code blocks ────────────────────────────────────────
+    # ── 5. Auto-run Python code blocks (Gated for safety) ─────────────────────
+    step_lower = step.lower()
+    is_execution_step = any(kw in step_lower for kw in ['run', 'test', 'verify', 'execut', 'benchmark', 'check', 'assert'])
+
     code_blocks = _extract_code_blocks(response)
     run_output  = ""
-    for code in code_blocks:
-        # Only run if it looks executable (has function calls, not just definitions)
-        if any(kw in code for kw in ['print(', 'if __name__', 'run(', 'main(', 'test(']):
-            print(f"   ▶ Auto-running code block...")
-            result = _auto_run_code(code, cwd)
-            run_output = result["output"]
-            status = "✅" if result["ok"] else "❌"
-            print(f"   {status} Output: {run_output[:150]}")
-            if not result["ok"]:
-                all_ok = False
-            actions_log.append(f"Code run: {'ok' if result['ok'] else 'failed'} — {run_output[:100]}")
-            break  # run only first executable block per step
+    # Only execute code blocks if explicitly requested by step, or if no files were touched and code is runnable
+    if is_execution_step or not (file_blocks or edit_blocks):
+        for code in code_blocks:
+            # Only run if it looks executable (has function calls, not just definitions)
+            if any(kw in code for kw in ['print(', 'if __name__', 'run(', 'main(', 'test(']):
+                if (file_blocks or edit_blocks) and not is_execution_step:
+                    continue
+                print(f"   ▶ Auto-running code block...")
+                result = _auto_run_code(code, cwd)
+                run_output = result["output"]
+                status = "✅" if result["ok"] else "❌"
+                print(f"   {status} Output: {run_output[:150]}")
+                if not result["ok"]:
+                    all_ok = False
+                actions_log.append(f"Code run: {'ok' if result['ok'] else 'failed'} — {run_output[:100]}")
+                break  # run only first executable block per step
 
-    # ── 5. Auto-run shell commands (git, mkdir, etc.) ─────────────────────────
+    # ── 6. Auto-run shell commands (git, mkdir, etc.) ─────────────────────────
     shell_cmds = _extract_shell_commands(response)
     SAFE_AUTO_RUN = ('mkdir', 'git init', 'git add', 'git status',
                      'npm init', 'python -m', 'pip list')

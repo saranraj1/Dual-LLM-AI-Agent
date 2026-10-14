@@ -1,5 +1,8 @@
 import sys
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, ".")
+
 
 print("Testing api_doc_scanner import...")
 from tools.api_doc_scanner import generate_api_docs, scan_api_endpoints, _scan_file
