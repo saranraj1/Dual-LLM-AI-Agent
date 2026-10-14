@@ -104,12 +104,60 @@ def _extract_edit_blocks(text: str) -> List[Dict]:
 
 def _extract_file_blocks(text: str) -> List[Dict]:
     """
-    Find all FILE: path\\n``` ... ``` blocks in LLM output.
+    Find all FILE: path\n``` ... ``` blocks in LLM output.
     Returns list of {path, content}.
+    Accurately handles nested code blocks (e.g. ```mermaid or ```text) within markdown files.
     """
-    pattern = r'FILE:\s*([^\n]+)\n```[a-z]*\n(.*?)```'
-    matches = re.findall(pattern, text, re.DOTALL)
-    return [{"path": m[0].strip(), "content": m[1]} for m in matches]
+    blocks = []
+    lines = text.splitlines(keepends=True)
+    i = 0
+    n = len(lines)
+
+    while i < n:
+        line = lines[i]
+        file_match = re.match(r'^\s*FILE:\s*[`"]?([^`"\r\n]+)[`"]?', line)
+        if file_match:
+            file_path = file_match.group(1).strip()
+            i += 1
+            while i < n and not lines[i].strip():
+                i += 1
+            if i >= n:
+                break
+            fence_m = re.match(r'^(`{3,})', lines[i].strip())
+            if fence_m:
+                fence = fence_m.group(1)
+                i += 1
+                content_lines = []
+                nested_fences = 0
+                while i < n:
+                    curr_line = lines[i]
+                    stripped = curr_line.strip()
+                    if re.match(r'^\s*FILE:\s*[`"]?[^`"\r\n]+[`"]?', curr_line):
+                        break
+                    if stripped.startswith("```") and len(stripped) > 3 and not stripped.startswith(fence + "`"):
+                        nested_fences += 1
+                        content_lines.append(curr_line)
+                    elif stripped == "```" or (stripped.startswith(fence) and len(stripped) == len(fence)):
+                        if nested_fences > 0:
+                            nested_fences -= 1
+                            content_lines.append(curr_line)
+                        else:
+                            i += 1
+                            break
+                    else:
+                        content_lines.append(curr_line)
+                    i += 1
+
+                blocks.append({"path": file_path, "content": "".join(content_lines)})
+                continue
+        i += 1
+
+    if not blocks:
+        pattern = r'FILE:\s*([^\n]+)\n```[a-z]*\n(.*?)```'
+        matches = re.findall(pattern, text, re.DOTALL)
+        blocks = [{"path": m[0].strip(), "content": m[1]} for m in matches]
+
+    return blocks
 
 
 def _extract_code_blocks(text: str) -> List[str]:

@@ -45,6 +45,31 @@ class TestExtractFileBlocks:
         assert len(blocks) == 1
         assert "src/utils/helper.py" in blocks[0]["path"]
 
+    def test_extracts_file_with_nested_code_fences(self):
+        text = (
+            "FILE: docs/arch.md\n"
+            "```markdown\n"
+            "# Architecture\n\n"
+            "Here is ASCII:\n"
+            "```text\n"
+            "+---+\n"
+            "| A |\n"
+            "+---+\n"
+            "```\n\n"
+            "And Mermaid:\n"
+            "```mermaid\n"
+            "graph TD\n"
+            "A --> B\n"
+            "```\n\n"
+            "Conclusion.\n"
+            "```"
+        )
+        blocks = _extract_file_blocks(text)
+        assert len(blocks) == 1
+        assert blocks[0]["path"] == "docs/arch.md"
+        assert "graph TD" in blocks[0]["content"]
+        assert "Conclusion." in blocks[0]["content"]
+
 
 class TestPathClamping:
     def test_absolute_windows_path_clamped_to_cwd(self):
