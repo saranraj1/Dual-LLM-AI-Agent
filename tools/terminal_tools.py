@@ -27,6 +27,8 @@ WARN_PATTERNS = ["sudo", "chmod 777", "chown", "passwd", "rm -rf"]
 _IS_WINDOWS = sys.platform == "win32"
 
 
+from core.security import is_command_blocked, get_command_warnings
+
 def _is_blocked(cmd: str) -> bool:
     low = cmd.lower()
     return any(b in low for b in BLOCKED_COMMANDS)
@@ -64,14 +66,18 @@ def run_command(
             "warnings": [],
         }
 
-    if _is_blocked(command):
+    blocked, reason = is_command_blocked(command)
+    if not blocked and _is_blocked(command):
+        blocked, reason = True, "dangerous command pattern detected."
+
+    if blocked:
         return {
             "ok": False, "stdout": "", "exit": -1,
-            "stderr": "Blocked: dangerous command pattern detected.",
+            "stderr": f"Blocked: {reason or 'dangerous command pattern detected.'}",
             "warnings": [],
         }
 
-    warnings = _has_warnings(command)
+    warnings = list(set(_has_warnings(command) + get_command_warnings(command)))
     resolved_cwd = _resolve_cwd(cwd)
 
     env = os.environ.copy()

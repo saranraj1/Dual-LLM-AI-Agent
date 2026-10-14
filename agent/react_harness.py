@@ -80,44 +80,19 @@ def classify_command_security(command: str) -> SecurityTier:
 def sanitize_path(path: str, workspace: str) -> Path:
     """
     Ensure path resolves strictly within the workspace directory.
-    Raises PermissionError if path attempts directory traversal outside workspace.
+    Delegates to core.security.sanitize_path.
     """
-    if not path or not path.strip():
-        return Path(workspace).resolve()
-
-    ws = Path(workspace).resolve()
-    clean_p = path.strip().strip("'\"")
-    target = (ws / clean_p).resolve()
-
-    try:
-        target.relative_to(ws)
-    except ValueError:
-        raise PermissionError(f"Access Denied: Path '{path}' escapes workspace sandbox '{ws}'.")
-
-    return target
-
-
-SECRET_PATTERNS = [
-    (r"\b(gsk_[a-zA-Z0-9]{4})[a-zA-Z0-9]{16,}([a-zA-Z0-9]{4})\b", r"\1***REDACTED***\2"),
-    (r"\b(sk-[a-zA-Z0-9]{4})[a-zA-Z0-9]{16,}([a-zA-Z0-9]{4})\b", r"\1***REDACTED***\2"),
-    (r"\b(ghp_[a-zA-Z0-9]{4})[a-zA-Z0-9]{16,}([a-zA-Z0-9]{4})\b", r"\1***REDACTED***\2"),
-    (r"\b(gho_[a-zA-Z0-9]{4})[a-zA-Z0-9]{16,}([a-zA-Z0-9]{4})\b", r"\1***REDACTED***\2"),
-    (r"\bgsk_[a-zA-Z0-9_\-]{16,}\b", "gsk_***REDACTED***"),
-    (r"\bsk-[a-zA-Z0-9_\-]{16,}\b", "sk-***REDACTED***"),
-    (r"\bghp_[a-zA-Z0-9_\-]{16,}\b", "ghp_***REDACTED***"),
-    (r"\bBearer\s+[a-zA-Z0-9_\-\.]{15,}\b", "Bearer ***REDACTED***"),
-    (r"(?i)\b(api_key|apikey|secret_key|private_key)\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{12,})['\"]", r'\1="***REDACTED***"'),
-]
+    from core.security import sanitize_path as _sanitize
+    return _sanitize(path, workspace)
 
 
 def mask_secrets(text: str) -> str:
-    """Mask known sensitive token patterns in tool outputs and logs."""
-    if not text or not isinstance(text, str):
-        return text
-    masked = text
-    for pat, rep in SECRET_PATTERNS:
-        masked = re.sub(pat, rep, masked)
-    return masked
+    """
+    Mask known sensitive token patterns in tool outputs and logs.
+    Delegates to core.security.mask_secrets.
+    """
+    from core.security import mask_secrets as _mask
+    return _mask(text)
 
 
 # ── Self-Healing Edit Engine ──────────────────────────────────────────────────

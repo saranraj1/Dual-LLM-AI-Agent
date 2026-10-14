@@ -109,10 +109,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+from core.security import (
+    sanitize_path,
+    validate_workspace,
+    is_sensitive_path,
+    mask_secrets,
+    get_allowed_cors_origins,
+)
+
+_BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", os.getcwd()))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=get_allowed_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -128,7 +139,7 @@ _agent: Optional[Agent] = None
 def get_agent() -> Agent:
     global _agent
     if _agent is None:
-        workspace = os.environ.get("AGENT_WORKSPACE", os.getcwd())
+        workspace = os.environ.get("AGENT_WORKSPACE", _BASE_WORKSPACE)
         _agent = Agent(workspace=workspace)
         log.info("agent initialised — workspace: %s", workspace)
     return _agent
@@ -250,7 +261,10 @@ async def chat(req: ChatRequest):
     """
     agent = get_agent()
     if req.workspace:
-        agent.workspace = os.path.abspath(req.workspace)
+        try:
+            agent.workspace = validate_workspace(req.workspace, _BASE_WORKSPACE)
+        except PermissionError as pe:
+            raise HTTPException(403, str(pe))
 
     log.info("chat: %s", req.message[:80])
 
@@ -328,7 +342,10 @@ async def run_task(req: RunRequest):
     """
     agent = get_agent()
     if req.workspace:
-        agent.workspace = os.path.abspath(req.workspace)
+        try:
+            agent.workspace = validate_workspace(req.workspace, _BASE_WORKSPACE)
+        except PermissionError as pe:
+            raise HTTPException(403, str(pe))
 
     log.info("run: %s", req.task[:80])
 
@@ -403,7 +420,10 @@ async def run_command_endpoint(req: CommandRequest):
     """
     agent = get_agent()
     if req.workspace:
-        agent.workspace = os.path.abspath(req.workspace)
+        try:
+            agent.workspace = validate_workspace(req.workspace, _BASE_WORKSPACE)
+        except PermissionError as pe:
+            raise HTTPException(403, str(pe))
 
     cmd_str = req.command.strip()
     if not cmd_str.startswith("/"):
@@ -505,15 +525,21 @@ async def llm_stats():
 
 @app.get("/files")
 async def list_files(path: Optional[str] = None):
-    """List workspace files (up to 200 entries)."""
+    """List workspace files (up to 200 entries), filtering sensitive secrets."""
     agent = get_agent()
     root  = Path(agent.workspace)
-    base  = root / path if path else root
+    try:
+        base = sanitize_path(path, agent.workspace) if path else root
+    except PermissionError as pe:
+        raise HTTPException(403, str(pe))
+
     skip  = {"__pycache__", ".git", ".venv", "venv", "node_modules", ".agent_backups"}
     entries = []
     try:
         for fp in sorted(base.rglob("*"))[:200]:
             if any(s in fp.parts for s in skip):
+                continue
+            if is_sensitive_path(str(fp)):
                 continue
             try:
                 entries.append({
@@ -530,11 +556,12 @@ async def list_files(path: Optional[str] = None):
 
 @app.get("/logs")
 async def get_logs(n: int = 50):
-    """Return the last n lines of the structured agent log file."""
+    """Return the last n lines of the structured agent log file with secrets scrubbed."""
     try:
-        return {"lines": tail_log(n)}
+        lines = tail_log(n)
+        return {"lines": [mask_secrets(line) for line in lines]}
     except Exception as e:
-        return {"lines": f"(log unavailable: {e})"}
+        return {"lines": [f"(log unavailable: {e})"]}
 
 
 @app.get("/graph")
@@ -544,7 +571,10 @@ async def get_dependency_graph(workspace: Optional[str] = None):
     Returns node-link format suitable for D3 / SVG graph visualizers.
     """
     agent = get_agent()
-    root = os.path.abspath(workspace) if workspace else agent.workspace
+    try:
+        root = validate_workspace(workspace, _BASE_WORKSPACE) if workspace else agent.workspace
+    except PermissionError as pe:
+        raise HTTPException(403, str(pe))
     try:
         from tools.graph_tools import export_graph_json
         data = export_graph_json(root)
@@ -560,7 +590,10 @@ async def get_blast_radius(symbol: str, file: Optional[str] = None, workspace: O
     Calculate AST blast radius and caller impact for a target symbol.
     """
     agent = get_agent()
-    root = os.path.abspath(workspace) if workspace else agent.workspace
+    try:
+        root = validate_workspace(workspace, _BASE_WORKSPACE) if workspace else agent.workspace
+    except PermissionError as pe:
+        raise HTTPException(403, str(pe))
     try:
         from tools.graph_tools import compute_blast_radius
         blast = compute_blast_radius(symbol=symbol, target_file=file or "", root_dir=root)
@@ -726,7 +759,10 @@ async def build_endpoint(req: BuildRequest):
     """Execute autonomous prompt-to-project build synchronously."""
     from agent.project_builder import build_project
     agent = get_agent()
-    ws = req.workspace or agent.workspace
+    try:
+        ws = validate_workspace(req.workspace, _BASE_WORKSPACE) if req.workspace else agent.workspace
+    except PermissionError as pe:
+        raise HTTPException(403, str(pe))
     report = await asyncio.get_event_loop().run_in_executor(
         None, partial(build_project, req.prompt, workspace=ws)
     )
@@ -739,7 +775,10 @@ async def build_stream_endpoint(req: BuildRequest):
     """Execute autonomous prompt-to-project build and stream SSE events."""
     from agent.project_builder import build_project_stream
     agent = get_agent()
-    ws = req.workspace or agent.workspace
+    try:
+        ws = validate_workspace(req.workspace, _BASE_WORKSPACE) if req.workspace else agent.workspace
+    except PermissionError as pe:
+        raise HTTPException(403, str(pe))
 
     def _event_generator():
         for line in build_project_stream(req.prompt, workspace=ws):

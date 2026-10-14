@@ -10,7 +10,9 @@ from typing import Dict, List, Optional
 from config.settings import SUPPORTED_EXTENSIONS, SKIP_DIRS, ALLOW_WRITE
 
 
-def read_file(path: str) -> Dict:
+from core.security import is_sensitive_path, mask_secrets, sanitize_path
+
+def read_file(path: str, allow_sensitive: bool = False) -> Dict:
     """Read a file and return its content with metadata."""
     try:
         p = Path(path).resolve()
@@ -18,6 +20,9 @@ def read_file(path: str) -> Dict:
             return {"ok": False, "error": f"File not found: {path}"}
         if not p.is_file():
             return {"ok": False, "error": f"Not a file: {path}"}
+        if not allow_sensitive and is_sensitive_path(str(p)):
+            return {"ok": False, "error": f"Access Denied: File '{path}' targets protected secrets/credentials."}
+
         content = p.read_text(encoding="utf-8", errors="ignore")
         lines   = content.splitlines()
         return {
@@ -37,6 +42,8 @@ def write_file(path: str, content: str) -> Dict:
         return {"ok": False, "error": "Write disabled in settings.py (ALLOW_WRITE=False)"}
     try:
         p = Path(path).resolve()
+        if is_sensitive_path(str(p)):
+            return {"ok": False, "error": f"Access Denied: Writing to protected secret store '{path}' is blocked."}
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
         return {"ok": True, "path": str(p), "bytes": len(content.encode())}
@@ -375,23 +382,5 @@ def rank_codebase_files(
     scan["scores"] = {}
     return scan
 
-
-def sanitize_path(path: str, workspace: str) -> Path:
-    """
-    Ensure path resolves strictly within the workspace directory.
-    Raises PermissionError if path attempts directory traversal outside workspace.
-    """
-    if not path or not path.strip():
-        return Path(workspace).resolve()
-
-    ws = Path(workspace).resolve()
-    clean_p = path.strip().strip("'\"")
-    target = (ws / clean_p).resolve()
-
-    try:
-        target.relative_to(ws)
-    except ValueError:
-        raise PermissionError(f"Access Denied: Path '{path}' escapes workspace sandbox '{ws}'.")
-    return target
 
 

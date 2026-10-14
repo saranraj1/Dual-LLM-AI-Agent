@@ -29,10 +29,13 @@ def cmd_ask_url(agent, args: str) -> str:
     clean = re.sub(r'<[^>]+>', ' ', raw)
     clean = re.sub(r'\s+', ' ', clean).strip()[:3000]
 
+    from core.security import sanitize_untrusted_input
+    sanitized_page = sanitize_untrusted_input(clean, source=url)
+
     prompt = f"""{question}
 
-Page content from {url}:
-{clean}"""
+Page content:
+{sanitized_page}"""
 
     print("Agent › ", end="", flush=True)
     full = ""

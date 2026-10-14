@@ -137,10 +137,14 @@ def preflight_check_file(file_path: str, proposed_content: Optional[str] = None)
                 "auto_repaired_content": repaired
             }
         ast_check = check_ast_structure(content)
+        from core.security import audit_code_safety
+        safety_check = audit_code_safety(content, filename=str(p))
+        all_warnings = ast_check.get("warnings", []) + [f"[SECURITY] {f}" for f in safety_check.get("findings", [])]
         return {
             "valid": True,
             "file": file_path,
-            "warnings": ast_check.get("warnings", []),
+            "warnings": all_warnings,
+            "safety": safety_check,
             "auto_repaired_content": None
         }
 

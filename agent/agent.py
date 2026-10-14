@@ -126,9 +126,11 @@ class Agent:
         """Called by ClipboardMonitor when code-like content is detected."""
         print(f"\n{C.YELLOW}📋 Code detected in clipboard — quick review:{C.RESET}")
         print(f"{C.GRAY}{'─'*50}{C.RESET}")
+        from core.security import sanitize_untrusted_input
+        safe_code = sanitize_untrusted_input(code[:1500], source="clipboard")
         prompt = (
             f"Briefly review this code snippet (2-4 sentences max). "
-            f"Note any bugs, style issues, or improvements. Be concise.\n\n```\n{code[:1500]}\n```"
+            f"Note any bugs, style issues, or improvements. Be concise.\n\n{safe_code}"
         )
         print(f"{agent_label()}", end="", flush=True)
         full = ""

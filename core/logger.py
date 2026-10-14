@@ -42,24 +42,27 @@ class JSONFormatter(logging.Formatter):
     """Emits one JSON object per log line — machine-readable, grep-friendly."""
 
     def format(self, record: logging.LogRecord) -> str:
+        from core.security import mask_secrets
+        msg = mask_secrets(record.getMessage())
         doc: Dict[str, Any] = {
             "ts":      self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
             "level":   record.levelname,
             "session": SESSION_ID,
             "logger":  record.name,
-            "msg":     record.getMessage(),
+            "msg":     msg,
         }
         # Include any extra= fields the caller passed
         for key, val in record.__dict__.items():
             if key not in logging.LogRecord.__dict__ and key not in doc and not key.startswith("_"):
                 try:
-                    json.dumps(val)   # only include JSON-serialisable values
-                    doc[key] = val
-                except TypeError:
-                    doc[key] = str(val)
+                    val_clean = mask_secrets(val) if isinstance(val, str) else val
+                    json.dumps(val_clean)   # only include JSON-serialisable values
+                    doc[key] = val_clean
+                except (TypeError, Exception):
+                    doc[key] = mask_secrets(str(val))
 
         if record.exc_info:
-            doc["exception"] = self.formatException(record.exc_info)
+            doc["exception"] = mask_secrets(self.formatException(record.exc_info))
 
         return json.dumps(doc, ensure_ascii=False)
 

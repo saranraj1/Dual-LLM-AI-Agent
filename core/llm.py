@@ -261,6 +261,11 @@ def ask(prompt: str, system: Optional[str] = None,
     Send a prompt, return full response string.
     backend: "auto" | "local" | "groq"
     """
+    from core.security import mask_secrets
+    prompt = mask_secrets(prompt)
+    if system:
+        system = mask_secrets(system)
+
     use = backend if backend != "auto" else _current_backend
 
     # ── Cache check ────────────────────────────────────────────────────────────
@@ -327,6 +332,11 @@ def ask(prompt: str, system: Optional[str] = None,
 def ask_stream(prompt: str, system: Optional[str] = None,
                backend: str = "auto") -> Generator[str, None, None]:
     """Stream response tokens. Falls back to Groq stream on Ollama failure."""
+    from core.security import mask_secrets
+    prompt = mask_secrets(prompt)
+    if system:
+        system = mask_secrets(system)
+
     use = backend if backend != "auto" else _current_backend
 
     if use == "groq":
