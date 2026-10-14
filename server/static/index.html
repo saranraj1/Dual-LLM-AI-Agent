@@ -3,893 +3,1493 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI Agent — Dual-LLM Coding Assistant</title>
-<meta name="description" content="Autonomous coding assistant powered by Ollama and Groq. Chat, run tasks, and manage your codebase from the browser." />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<title>AI Agent - Engineering Console</title>
+<meta name="description" content="Autonomous coding console powered by Ollama and Groq. AST call graph, blast radius analysis, turn-level git checkpoints, and self-healing TDD." />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
-/* ── Reset & Base ─────────────────────────────────────────────────────────── */
+/* Reset and Base Surfaces */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 :root {
-  --bg-primary:   #0d1117;
-  --bg-secondary: #161b22;
-  --bg-card:      #1c2230;
-  --bg-hover:     #21293a;
-  --border:       #30363d;
-  --border-focus: #388bfd;
-  --text-primary: #e6edf3;
-  --text-secondary:#8b949e;
-  --text-dim:     #484f58;
-  --accent:       #388bfd;
-  --accent-glow:  rgba(56,139,253,0.2);
-  --green:        #3fb950;
-  --green-glow:   rgba(63,185,80,0.15);
-  --orange:       #d29922;
-  --red:          #f85149;
-  --purple:       #bc8cff;
-  --user-bg:      #1f3040;
-  --agent-bg:     #1c2230;
-  --radius:       12px;
-  --radius-sm:    8px;
-  --shadow:       0 8px 32px rgba(0,0,0,0.4);
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --surface-base:      #090a0c;
+  --surface-subtle:    #0e1014;
+  --surface-raised:    #14171d;
+  --surface-card:      #171a22;
+  --surface-hover:     #1e222c;
+  --surface-active:    #252b37;
+
+  --border-subtle:     rgba(255, 255, 255, 0.08);
+  --border-strong:     rgba(255, 255, 255, 0.16);
+  --border-focus:      #f97316;
+
+  --text-primary:      #f4f4f6;
+  --text-secondary:    #8f96a3;
+  --text-muted:        #525866;
+  --text-dim:          #3d424e;
+
+  --signal-amber:      #f97316;
+  --signal-amber-bg:   rgba(249, 115, 22, 0.12);
+  --signal-emerald:    #10b981;
+  --signal-emerald-bg: rgba(16, 185, 129, 0.12);
+  --signal-crimson:    #ef4444;
+  --signal-crimson-bg: rgba(239, 68, 68, 0.12);
+  --signal-sky:        #0284c7;
+  --signal-sky-bg:     rgba(2, 132, 199, 0.12);
+
+  --radius-xs:         3px;
+  --radius-sm:         4px;
+  --radius-md:         6px;
+  --radius-lg:         8px;
+
+  --font-sans:         -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
-html { scroll-behavior: smooth; }
+
+html {
+  height: 100%;
+}
+
 body {
-  font-family: 'Inter', -apple-system, sans-serif;
-  background: var(--bg-primary);
+  font-family: var(--font-sans);
+  background-color: var(--surface-base);
   color: var(--text-primary);
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
+pre, code, kbd, samp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+::-webkit-scrollbar-thumb { background: var(--surface-hover); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* ── Layout ────────────────────────────────────────────────────────────────── */
-.app { display: flex; height: 100vh; overflow: hidden; }
+/* Layout Architecture */
+[data-ui] .app-root {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--surface-base);
+}
 
-/* ── Sidebar ───────────────────────────────────────────────────────────────── */
-.sidebar {
-  width: 260px;
-  min-width: 260px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+/* Sidebar */
+[data-ui] .sidebar {
+  width: 250px;
+  min-width: 250px;
+  background-color: var(--surface-subtle);
+  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  padding: 0;
-  transition: transform 0.3s ease;
+  overflow: hidden;
 }
-.sidebar-logo {
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid var(--border);
+
+[data-ui] .sidebar-brand {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.logo-icon {
-  width: 36px; height: 36px;
-  background: linear-gradient(135deg, #388bfd 0%, #bc8cff 100%);
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px;
+
+[data-ui] .brand-mark {
+  width: 28px;
+  height: 28px;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--signal-amber);
   flex-shrink: 0;
-  box-shadow: 0 0 16px rgba(56,139,253,0.3);
 }
-.logo-text { font-size: 15px; font-weight: 600; color: var(--text-primary); }
-.logo-sub  { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
 
-.sidebar-section { padding: 14px 12px 8px; }
-.sidebar-label { font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 8px 6px; }
+[data-ui] .brand-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
 
-.cmd-btn {
+[data-ui] .brand-sub {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+[data-ui] .sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[data-ui] .deck-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+[data-ui] .deck-heading {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+}
+
+[data-ui] .cmd-btn {
   width: 100%;
-  background: none;
+  background: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 6px 8px;
   text-align: left;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
   display: flex;
   align-items: center;
-  gap: 9px;
-  transition: all 0.15s;
-  margin-bottom: 2px;
-}
-.cmd-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-.cmd-btn .cmd-icon { font-size: 15px; width: 20px; flex-shrink: 0; }
-.cmd-btn .cmd-badge {
-  margin-left: auto;
-  font-size: 10px;
-  background: var(--bg-card);
-  color: var(--text-dim);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-family: var(--font-mono);
+  gap: 8px;
+  transition: color 0.12s ease, background-color 0.12s ease;
 }
 
-.status-bar {
-  margin-top: auto;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
+[data-ui] .cmd-btn:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+[data-ui] .cmd-icon {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+[data-ui] .cmd-btn:hover .cmd-icon {
+  color: var(--signal-amber);
+}
+
+[data-ui] .cmd-arg {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  background-color: var(--surface-base);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+}
+
+[data-ui] .sidebar-telemetry {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  background-color: var(--surface-subtle);
 }
-.status-item {
+
+[data-ui] .status-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
-.dot {
-  width: 7px; height: 7px;
+
+[data-ui] .status-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+  background-color: var(--text-muted);
   flex-shrink: 0;
-  animation: pulse 2s infinite;
-}
-.dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.dot.red   { background: var(--red); }
-.dot.orange{ background: var(--orange); }
-@keyframes pulse {
-  0%,100% { opacity: 1; } 50% { opacity: 0.5; }
 }
 
-/* ── Main panel ────────────────────────────────────────────────────────────── */
-.main {
+[data-ui] .status-dot.up   { background-color: var(--signal-emerald); }
+[data-ui] .status-dot.down { background-color: var(--signal-crimson); }
+[data-ui] .status-dot.idle { background-color: var(--signal-amber); }
+
+/* Main Stage */
+[data-ui] .stage {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  background-color: var(--surface-base);
 }
 
-.topbar {
-  height: 52px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+/* Topbar */
+[data-ui] .topbar {
+  height: 48px;
+  background-color: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 16px;
   gap: 12px;
   flex-shrink: 0;
 }
-.topbar-title { font-size: 14px; font-weight: 500; flex: 1; }
-.topbar-actions { display: flex; gap: 8px; }
-.icon-btn {
-  background: none;
-  border: 1px solid var(--border);
+
+[data-ui] .mode-selector {
+  display: flex;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+[data-ui] .mode-tab {
+  background: transparent;
+  border: none;
   border-radius: var(--radius-sm);
-  padding: 5px 10px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  display: flex; align-items: center; gap: 5px;
-  transition: all 0.15s;
-}
-.icon-btn:hover { border-color: var(--accent); color: var(--text-primary); background: var(--accent-glow); }
-.icon-btn.active { border-color: var(--green); color: var(--green); }
-
-/* ── Mode tabs ─────────────────────────────────────────────────────────────── */
-.mode-tabs {
-  display: flex;
-  gap: 2px;
-  padding: 0 4px;
-}
-.mode-tab {
-  background: none;
-  border: none;
-  border-radius: 6px;
-  padding: 4px 12px;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.mode-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
-.mode-tab.active { background: var(--accent-glow); color: var(--accent); font-weight: 500; }
-
-/* ── Backend selector ──────────────────────────────────────────────────────── */
-.backend-selector {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 3px;
-  margin-left: 8px;
-}
-.backend-selector-label {
-  font-size: 10px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  padding: 0 6px 0 4px;
-  border-right: 1px solid var(--border);
-  margin-right: 2px;
-  white-space: nowrap;
-}
-.backend-btn {
-  background: none;
-  border: none;
-  border-radius: 5px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   font-size: 11px;
-  font-family: inherit;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
   color: var(--text-secondary);
-  white-space: nowrap;
-}
-.backend-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-.backend-btn.active-auto  { background: var(--accent-glow); color: var(--accent); }
-.backend-btn.active-local { background: rgba(63,185,80,0.15); color: var(--green); }
-.backend-btn.active-groq  { background: rgba(188,140,255,0.15); color: var(--purple); }
-.backend-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.backend-dot {
-  display: inline-block;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-.backend-dot.up   { background: var(--green); }
-.backend-dot.down { background: var(--red); }
-
-
-/* ── Chat area ─────────────────────────────────────────────────────────────── */
-.chat-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 0;
+  cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.chat-welcome {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 60px 40px;
-  text-align: center;
-  flex: 1;
+  gap: 6px;
+  transition: color 0.12s ease, background-color 0.12s ease;
 }
-.welcome-icon {
-  width: 72px; height: 72px;
-  background: linear-gradient(135deg, #1c2230 0%, #21293a 100%);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 36px;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow);
+
+[data-ui] .mode-tab:hover {
+  color: var(--text-primary);
+  background-color: var(--surface-hover);
 }
-.welcome-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
-.welcome-sub { color: var(--text-secondary); font-size: 14px; max-width: 400px; line-height: 1.7; }
-.quick-cmds {
+
+[data-ui] .mode-tab.active {
+  color: var(--text-primary);
+  background-color: var(--surface-card);
+}
+
+[data-ui] .backend-selector {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 28px;
-  justify-content: center;
-}
-.quick-chip {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-family: var(--font-mono);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.quick-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
-
-/* ── Message bubble ─────────────────────────────────────────────────────────── */
-.msg-row {
-  padding: 4px 24px;
-  display: flex;
-  flex-direction: column;
-  animation: fadeSlide 0.2s ease;
-}
-.msg-row.user   { align-items: flex-end; }
-.msg-row.agent  { align-items: flex-start; }
-.msg-row.system { align-items: center; }
-
-@keyframes fadeSlide {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  align-items: center;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px 3px;
+  gap: 2px;
 }
 
-.msg-meta { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-.msg-meta .avatar {
-  width: 20px; height: 20px;
-  border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px;
-}
-.msg-meta .avatar.user  { background: linear-gradient(135deg, #388bfd, #bc8cff); }
-.msg-meta .avatar.agent { background: linear-gradient(135deg, #3fb950, #388bfd); }
-
-.msg-bubble {
-  max-width: min(680px, 80%);
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  font-size: 14px;
-  line-height: 1.7;
-  word-break: break-word;
-}
-.msg-bubble.user {
-  background: var(--user-bg);
-  border: 1px solid rgba(56,139,253,0.2);
-  border-bottom-right-radius: 4px;
-}
-.msg-bubble.agent {
-  background: var(--agent-bg);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
-}
-.msg-bubble.system {
-  background: rgba(63,185,80,0.08);
-  border: 1px solid rgba(63,185,80,0.2);
-  color: var(--green);
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: 20px;
+[data-ui] .backend-caption {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 0 6px 0 4px;
+  border-right: 1px solid var(--border-subtle);
 }
 
-/* ── Markdown in agent bubbles ─────────────────────────────────────────────── */
-.msg-bubble code {
-  font-family: var(--font-mono);
-  background: rgba(255,255,255,0.06);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 12.5px;
-  color: var(--purple);
-}
-.msg-bubble pre {
-  background: #0d1117;
-  border: 1px solid var(--border);
+[data-ui] .backend-btn {
+  background: transparent;
+  border: none;
   border-radius: var(--radius-sm);
-  padding: 14px;
-  overflow-x: auto;
-  margin: 10px 0;
-  position: relative;
-}
-.msg-bubble pre code { background: none; padding: 0; color: inherit; font-size: 12.5px; }
-.copy-btn {
-  position: absolute;
-  top: 8px; right: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
   padding: 3px 8px;
   font-size: 11px;
+  font-family: inherit;
   color: var(--text-secondary);
   cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
-  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.12s ease, background-color 0.12s ease;
 }
-.msg-bubble pre:hover .copy-btn { opacity: 1; }
-.copy-btn:hover { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
-.msg-bubble p  { margin-bottom: 6px; }
-.msg-bubble ul,
-.msg-bubble ol { padding-left: 20px; margin: 6px 0; }
-.msg-bubble li { margin-bottom: 3px; }
-.msg-bubble strong { font-weight: 600; color: var(--text-primary); }
-.msg-bubble h3 { font-size: 14px; font-weight: 600; margin: 10px 0 4px; }
-.msg-bubble blockquote {
-  border-left: 3px solid var(--accent);
-  padding-left: 12px;
+
+[data-ui] .backend-btn:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+[data-ui] .backend-btn.active-auto  { background-color: var(--surface-card); color: var(--signal-amber); }
+[data-ui] .backend-btn.active-local { background-color: var(--surface-card); color: var(--signal-emerald); }
+[data-ui] .backend-btn.active-groq  { background-color: var(--surface-card); color: var(--signal-sky); }
+[data-ui] .backend-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+[data-ui] .backend-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+}
+[data-ui] .backend-dot.up   { background-color: var(--signal-emerald); }
+[data-ui] .backend-dot.down { background-color: var(--signal-crimson); }
+
+[data-ui] .topbar-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 4px;
+}
+
+[data-ui] .action-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 9px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+}
+
+[data-ui] .action-btn:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* Chat Stream Area */
+[data-ui] .chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Welcome Console Banner */
+[data-ui] .welcome-box {
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin: auto;
+  max-width: 620px;
+  text-align: left;
+}
+
+[data-ui] .welcome-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+[data-ui] .welcome-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-ui] .welcome-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+[data-ui] .quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+[data-ui] .quick-card {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+[data-ui] .quick-card:hover {
+  border-color: var(--signal-amber);
+  background-color: var(--surface-hover);
+}
+
+[data-ui] .quick-cmd {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+[data-ui] .quick-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Continuous Execution Stream Blocks */
+[data-ui] .turn-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+[data-ui] .turn-card.user {
+  background-color: var(--surface-subtle);
+  border-left: 2px solid var(--signal-amber);
+}
+
+[data-ui] .turn-card.agent {
+  background-color: var(--surface-card);
+  border-left: 2px solid var(--signal-emerald);
+}
+
+[data-ui] .turn-card.system {
+  background-color: var(--surface-subtle);
+  border-left: 2px solid var(--signal-sky);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+[data-ui] .turn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background-color: var(--surface-raised);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+}
+
+[data-ui] .turn-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+[data-ui] .turn-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-ui] .turn-badge.user-badge  { background-color: var(--signal-amber-bg); color: var(--signal-amber); }
+[data-ui] .turn-badge.agent-badge { background-color: var(--signal-emerald-bg); color: var(--signal-emerald); }
+
+[data-ui] .turn-time {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+[data-ui] .turn-content {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+[data-ui] .user-prompt-cmd {
+  color: var(--text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+[data-ui] .user-prompt-cmd::before {
+  content: "> ";
+  color: var(--signal-amber);
+  font-weight: 600;
+}
+
+/* Markdown inside turn content */
+[data-ui] .turn-content p {
+  margin-bottom: 8px;
+}
+
+[data-ui] .turn-content p:last-child {
+  margin-bottom: 0;
+}
+
+[data-ui] .turn-content ul,
+[data-ui] .turn-content ol {
+  padding-left: 18px;
+  margin: 6px 0 10px;
+}
+
+[data-ui] .turn-content li {
+  margin-bottom: 2px;
+}
+
+[data-ui] .turn-content h1,
+[data-ui] .turn-content h2,
+[data-ui] .turn-content h3,
+[data-ui] .turn-content h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 14px 0 6px;
+}
+
+[data-ui] .turn-content code {
+  background-color: var(--surface-active);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  color: var(--signal-amber);
+}
+
+[data-ui] .turn-content pre {
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+  position: relative;
+}
+
+[data-ui] .turn-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 12px;
+}
+
+[data-ui] .copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 2px 7px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+[data-ui] .turn-content pre:hover .copy-btn {
+  opacity: 1;
+}
+
+[data-ui] .copy-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+[data-ui] .turn-content blockquote {
+  border-left: 2px solid var(--signal-amber);
+  padding-left: 10px;
   color: var(--text-secondary);
   margin: 8px 0;
 }
-.msg-bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
-.msg-bubble th,
-.msg-bubble td { border: 1px solid var(--border); padding: 6px 12px; }
-.msg-bubble th  { background: var(--bg-hover); font-weight: 600; }
 
-/* Typing indicator */
-.typing {
+[data-ui] .turn-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+[data-ui] .turn-content th,
+[data-ui] .turn-content td {
+  border: 1px solid var(--border-subtle);
+  padding: 5px 10px;
+  text-align: left;
+}
+
+[data-ui] .turn-content th {
+  background-color: var(--surface-raised);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* Interactive QA Card */
+[data-ui] .qa-card {
+  margin-top: 10px;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+[data-ui] .qa-title {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 10px 14px;
-  background: var(--agent-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  border-bottom-left-radius: 4px;
-  width: fit-content;
-}
-.typing span {
-  width: 6px; height: 6px;
-  background: var(--text-secondary);
-  border-radius: 50%;
-  animation: bounce 1.2s infinite;
-}
-.typing span:nth-child(2) { animation-delay: 0.2s; }
-.typing span:nth-child(3) { animation-delay: 0.4s; }
-@keyframes bounce {
-  0%,80%,100% { transform: translateY(0); }
-  40%          { transform: translateY(-6px); }
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--signal-amber);
 }
 
-/* ── Input area ────────────────────────────────────────────────────────────── */
-.input-area {
-  padding: 16px 24px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-primary);
+[data-ui] .qa-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+[data-ui] .qa-btn {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+[data-ui] .qa-btn:hover {
+  border-color: var(--signal-amber);
+  background-color: var(--surface-hover);
+}
+
+[data-ui] .qa-num {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--signal-amber);
+  background-color: var(--surface-base);
+  border-radius: var(--radius-xs);
+  padding: 1px 4px;
+}
+
+/* Reasoning Tray / Thought Drawer */
+[data-ui] .thought-drawer {
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+[data-ui] .thought-toggle {
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background-color: var(--surface-subtle);
+  user-select: none;
+}
+
+[data-ui] .thought-toggle:hover {
+  color: var(--text-primary);
+}
+
+[data-ui] .thought-body {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  border-top: 1px solid var(--border-subtle);
+  display: none;
+}
+
+[data-ui] .thought-body.open {
+  display: block;
+}
+
+/* Typing & Streaming Cursor */
+[data-ui] .cursor {
+  display: inline-block;
+  color: var(--signal-amber);
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+[data-ui] .stream-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Input Console Deck */
+[data-ui] .input-deck {
+  padding: 12px 16px 16px;
+  background-color: var(--surface-subtle);
+  border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
-.input-wrapper {
+
+[data-ui] .input-box {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: all 0.2s;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease;
 }
-.input-wrapper:focus-within {
+
+[data-ui] .input-box:focus-within {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-glow);
 }
-#chat-input {
+
+[data-ui] #chat-input {
   width: 100%;
-  background: none;
+  background: transparent;
   border: none;
   outline: none;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
-  padding: 13px 100px 13px 16px;
+  padding: 10px 100px 10px 12px;
   resize: none;
   line-height: 1.5;
-  min-height: 48px;
-  max-height: 200px;
+  min-height: 42px;
+  max-height: 180px;
   overflow-y: auto;
-}
-#chat-input::placeholder { color: var(--text-dim); }
-.input-actions {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.send-btn {
-  background: var(--accent);
-  border: none;
-  border-radius: 8px;
-  width: 34px; height: 34px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s;
-  color: #fff;
-  font-size: 16px;
-}
-.send-btn:hover  { background: #4d9ff6; transform: scale(1.05); }
-.send-btn:active { transform: scale(0.96); }
-.send-btn:disabled { background: var(--text-dim); cursor: not-allowed; transform: none; }
-.run-btn {
-  background: var(--green);
-  border: none;
-  border-radius: 8px;
-  padding: 0 12px;
-  height: 34px;
-  display: flex; align-items: center; gap: 5px;
-  cursor: pointer;
-  transition: all 0.15s;
-  color: #000;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: inherit;
-}
-.run-btn:hover  { background: #4cc65f; transform: scale(1.03); }
-.run-btn:active { transform: scale(0.97); }
-.run-btn:disabled { background: var(--text-dim); color: var(--bg-primary); cursor: not-allowed; transform: none; }
-.input-hint { font-size: 11px; color: var(--text-dim); margin-top: 8px; text-align: center; }
-.input-hint kbd {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-family: var(--font-mono);
-  font-size: 10px;
 }
 
-/* ── Right panel (Stats) ─────────────────────────────────────────────────────── */
-.stats-panel {
-  width: 280px;
-  min-width: 280px;
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border);
+[data-ui] #chat-input::placeholder {
+  color: var(--text-dim);
+}
+
+[data-ui] .input-controls {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+[data-ui] .send-btn {
+  background-color: var(--signal-amber);
+  border: none;
+  border-radius: var(--radius-sm);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #090a0c;
+  transition: opacity 0.12s ease;
+}
+
+[data-ui] .send-btn:hover {
+  opacity: 0.9;
+}
+
+[data-ui] .send-btn:disabled {
+  background-color: var(--surface-hover);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+[data-ui] .run-btn {
+  background-color: var(--surface-active);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--signal-emerald);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+[data-ui] .run-btn:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--signal-emerald);
+}
+
+[data-ui] .run-btn:disabled {
+  background-color: var(--surface-card);
+  color: var(--text-dim);
+  border-color: var(--border-subtle);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+[data-ui] .input-legend {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
+[data-ui] .input-legend kbd {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1px 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* Bento Telemetry Deck (Right Aside) */
+[data-ui] .bento-panel {
+  width: 290px;
+  min-width: 290px;
+  background-color: var(--surface-subtle);
+  border-left: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  padding: 0;
   overflow-y: auto;
+  padding: 12px;
+  gap: 12px;
 }
-.stats-header {
-  padding: 16px 20px;
-  font-size: 12px;
+
+[data-ui] .bento-cell {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-ui] .cell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.04em;
 }
-.stat-card {
-  margin: 12px 16px 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-}
-.stat-card-title { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
-.stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
-.stat-val { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text-primary); }
-.stat-val.green  { color: var(--green); }
-.stat-val.orange { color: var(--orange); }
-.stat-val.accent { color: var(--accent); }
 
-.backend-indicator {
+[data-ui] .cell-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  font-weight: 600;
+}
+
+[data-ui] .cell-badge.amber   { background-color: var(--signal-amber-bg); color: var(--signal-amber); }
+[data-ui] .cell-badge.emerald { background-color: var(--signal-emerald-bg); color: var(--signal-emerald); }
+[data-ui] .cell-badge.sky     { background-color: var(--signal-sky-bg); color: var(--signal-sky); }
+
+[data-ui] .telemetry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+[data-ui] .telemetry-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-ui] .telemetry-val.amber   { color: var(--signal-amber); }
+[data-ui] .telemetry-val.emerald { color: var(--signal-emerald); }
+[data-ui] .telemetry-val.crimson { color: var(--signal-crimson); }
+[data-ui] .telemetry-val.sky     { color: var(--signal-sky); }
+
+[data-ui] .checkpoint-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  justify-content: space-between;
+  padding: 5px 6px;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  font-size: 11px;
 }
 
-/* ── Notifications ──────────────────────────────────────────────────────────── */
-.toast-container {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
+[data-ui] .checkpoint-meta {
   display: flex;
   flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+
+[data-ui] .checkpoint-id {
+  font-size: 10px;
+  color: var(--signal-amber);
+  font-weight: 600;
+}
+
+[data-ui] .checkpoint-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-ui] .checkpoint-revert-btn {
+  background-color: var(--surface-active);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+[data-ui] .checkpoint-revert-btn:hover {
+  border-color: var(--signal-amber);
+  color: var(--signal-amber);
+}
+
+/* AST Graph View */
+[data-ui] .graph-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--surface-base);
+}
+
+[data-ui] .graph-toolbar {
+  display: flex;
   gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  background-color: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+[data-ui] .graph-input {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--text-primary);
+  font-size: 11px;
+  outline: none;
+}
+
+[data-ui] .graph-input:focus {
+  border-color: var(--border-focus);
+}
+
+[data-ui] .graph-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+[data-ui] .graph-canvas-box {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background-color: var(--surface-base);
+}
+
+[data-ui] .graph-inspector {
+  width: 300px;
+  background-color: var(--surface-subtle);
+  border-left: 1px solid var(--border-subtle);
+  padding: 14px;
+  overflow-y: auto;
+}
+
+/* Toast Notifications */
+[data-ui] .toast-deck {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   z-index: 1000;
 }
-.toast {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+
+[data-ui] .toast-entry {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  font-size: 13px;
-  max-width: 320px;
-  box-shadow: var(--shadow);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
-  animation: slideIn 0.2s ease, slideOut 0.3s ease 2.7s forwards;
-}
-.toast.success { border-color: var(--green); }
-.toast.error   { border-color: var(--red); }
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
-@keyframes slideOut {
-  from { opacity: 1; }
-  to   { opacity: 0; transform: translateX(100%); }
 }
 
-/* ── Responsive ─────────────────────────────────────────────────────────────── */
+[data-ui] .toast-entry.success { border-left: 3px solid var(--signal-emerald); }
+[data-ui] .toast-entry.error   { border-left: 3px solid var(--signal-crimson); }
+
+[data-ui] .blast-summary-deck {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+  margin-top: 8px;
+}
+
 @media (max-width: 900px) {
-  .sidebar { display: none; }
-  .stats-panel { display: none; }
+  [data-ui] .sidebar { display: none; }
+  [data-ui] .bento-panel { display: none; }
 }
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app-root" data-ui="console">
 
-  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <!-- Left Sidebar -->
   <aside class="sidebar">
-    <div class="sidebar-logo">
-      <div class="logo-icon">🤖</div>
+    <div class="sidebar-brand">
+      <div class="brand-mark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+      </div>
       <div>
-        <div class="logo-text">AI Agent</div>
-        <div class="logo-sub">Dual-LLM Assistant</div>
+        <div class="brand-title">AI Agent</div>
+        <div class="brand-sub">Autonomous Console</div>
       </div>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-label">Quick Commands</div>
-      <button class="cmd-btn" onclick="insertCmd('/review')"  title="Code review"><span class="cmd-icon">🔍</span>/review <span class="cmd-badge">file</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/fix')"     title="Auto-fix errors"><span class="cmd-icon">🔧</span>/fix <span class="cmd-badge">file</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/test')"    title="Generate tests"><span class="cmd-icon">🧪</span>/test <span class="cmd-badge">file</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/tdd')"     title="Autonomous Self-Healing TDD"><span class="cmd-icon">🔄</span>/tdd <span class="cmd-badge">task</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/blast')"   title="AST Blast Radius Analysis"><span class="cmd-icon">💥</span>/blast <span class="cmd-badge">sym</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/qa ')"      title="Interactive Question / User Input"><span class="cmd-icon">❓</span>/qa <span class="cmd-badge">question</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/refactor')"><span class="cmd-icon">♻️</span>/refactor <span class="cmd-badge">file</span></button>
-      <button class="cmd-btn" onclick="insertCmd('/security')"><span class="cmd-icon">🔒</span>/security</button>
-      <button class="cmd-btn" onclick="insertCmd('/git')"     title="Commit with AI message"><span class="cmd-icon">📦</span>/git</button>
-      <button class="cmd-btn" onclick="insertCmd('/docs')"    title="Generate docs"><span class="cmd-icon">📄</span>/docs</button>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-label">Project</div>
-      <button class="cmd-btn" onclick="insertCmd('/stats')"><span class="cmd-icon">📊</span>/stats</button>
-      <button class="cmd-btn" onclick="insertCmd('/diagram')"><span class="cmd-icon">🗺️</span>/diagram</button>
-      <button class="cmd-btn" onclick="insertCmd('/deps')"><span class="cmd-icon">🔗</span>/deps</button>
-      <button class="cmd-btn" onclick="insertCmd('/changelog')"><span class="cmd-icon">📋</span>/changelog</button>
-      <button class="cmd-btn" onclick="insertCmd('/scaffold')"><span class="cmd-icon">🏗️</span>/scaffold <span class="cmd-badge">type</span></button>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-label">Session</div>
-      <button class="cmd-btn" onclick="insertCmd('/time')"><span class="cmd-icon">⏱️</span>/time</button>
-      <button class="cmd-btn" onclick="insertCmd('/history')"><span class="cmd-icon">📜</span>/history</button>
-      <button class="cmd-btn" onclick="clearChat()"><span class="cmd-icon">🗑️</span>Clear chat</button>
-    </div>
-
-    <div class="status-bar" id="status-bar">
-      <div class="status-item">
-        <div class="dot orange" id="ollama-dot"></div>
-        <span id="ollama-label">Checking Ollama...</span>
+    <div class="sidebar-body">
+      <div class="deck-group">
+        <div class="deck-heading">Core Commands</div>
+        <button class="cmd-btn" onclick="insertCmd('/review')" title="Code review">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </span>
+          /review <span class="cmd-arg">file</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/fix')" title="Auto-fix errors">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+          </span>
+          /fix <span class="cmd-arg">file</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/test')" title="Generate tests">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31"></path><path d="M14 9.3V2"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.52 16h12.96"></path></svg>
+          </span>
+          /test <span class="cmd-arg">file</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/tdd')" title="Self-healing TDD loop">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          </span>
+          /tdd <span class="cmd-arg">task</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/blast')" title="AST blast radius">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>
+          </span>
+          /blast <span class="cmd-arg">sym</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/qa ')" title="Interactive QA decision">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </span>
+          /qa <span class="cmd-arg">prompt</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/compact')" title="Compress working memory">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+          </span>
+          /compact
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/refactor')" title="Clean refactor">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line></svg>
+          </span>
+          /refactor <span class="cmd-arg">file</span>
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/security')" title="Security audit">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </span>
+          /security
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/git')" title="Git commit">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+          </span>
+          /git
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/docs')" title="Generate documentation">
+          <span class="cmd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          </span>
+          /docs
+        </button>
       </div>
-      <div class="status-item">
-        <div class="dot orange" id="groq-dot"></div>
-        <span id="groq-label">Checking Groq...</span>
+
+      <div class="deck-group">
+        <div class="deck-heading">Repository</div>
+        <button class="cmd-btn" onclick="insertCmd('/stats')">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+          /stats
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/diagram')">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span>
+          /diagram
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/deps')">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>
+          /deps
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/changelog')">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></span>
+          /changelog
+        </button>
+        <button class="cmd-btn" onclick="insertCmd('/scaffold')">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></span>
+          /scaffold <span class="cmd-arg">type</span>
+        </button>
+      </div>
+
+      <div class="deck-group">
+        <div class="deck-heading">Workspace</div>
+        <button class="cmd-btn" onclick="undoRecentCheckpoint()">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg></span>
+          Undo Checkpoint
+        </button>
+        <button class="cmd-btn" onclick="clearChat()">
+          <span class="cmd-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+          Clear Console
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-telemetry" id="status-bar">
+      <div class="status-row">
+        <div class="status-dot idle" id="ollama-dot"></div>
+        <span id="ollama-label">Ollama: Connecting</span>
+      </div>
+      <div class="status-row">
+        <div class="status-dot idle" id="groq-dot"></div>
+        <span id="groq-label">Groq: Connecting</span>
       </div>
     </div>
   </aside>
 
-  <!-- ── Main ─────────────────────────────────────────────────────────────── -->
-  <main class="main">
+  <!-- Stage -->
+  <main class="stage">
     <div class="topbar">
-      <div class="mode-tabs">
-        <button class="mode-tab active" id="tab-chat" onclick="setMode('chat')">💬 Chat</button>
-        <button class="mode-tab"        id="tab-run"  onclick="setMode('run')">⚡ Run Task</button>
-        <button class="mode-tab"        id="tab-graph" onclick="setMode('graph')">🕸️ Call Graph</button>
+      <div class="mode-selector">
+        <button class="mode-tab active" id="tab-chat" onclick="setMode('chat')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          Chat
+        </button>
+        <button class="mode-tab" id="tab-run" onclick="setMode('run')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          Run Task
+        </button>
+        <button class="mode-tab" id="tab-graph" onclick="setMode('graph')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+          AST Graph
+        </button>
       </div>
 
-      <!-- ── Backend selector ─────────────────────────────────── -->
       <div class="backend-selector" id="backend-selector" title="Select LLM backend">
-        <span class="backend-selector-label">Model</span>
-        <button class="backend-btn" id="btn-auto"  onclick="switchBackend('auto')">
+        <span class="backend-caption">Model</span>
+        <button class="backend-btn" id="btn-auto" onclick="switchBackend('auto')">
           <span class="backend-dot" id="dot-auto"></span>Auto
         </button>
         <button class="backend-btn" id="btn-local" onclick="switchBackend('local')">
           <span class="backend-dot" id="dot-local"></span>Local
         </button>
-        <button class="backend-btn" id="btn-groq"  onclick="switchBackend('groq')">
+        <button class="backend-btn" id="btn-groq" onclick="switchBackend('groq')">
           <span class="backend-dot" id="dot-groq"></span>Groq
         </button>
       </div>
 
-      <div class="topbar-title" id="topbar-title">Coding Assistant</div>
-      <div class="topbar-actions">
-        <button class="icon-btn" onclick="refreshStats()" title="Refresh stats">↻ Stats</button>
-        <button class="icon-btn" onclick="openApiDocs()"  title="API Docs">📚 API</button>
-        <button class="icon-btn" onclick="togglePanel()"  id="panel-btn">◀ Panel</button>
-      </div>
+      <div class="topbar-meta" id="topbar-title">Coding Assistant</div>
+
+      <button class="action-btn" onclick="undoRecentCheckpoint()" title="Revert to prior checkpoint">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
+        Undo
+      </button>
+      <button class="action-btn" onclick="refreshStats()" title="Refresh live telemetry">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        Sync
+      </button>
+      <button class="action-btn" onclick="openApiDocs()" title="Swagger documentation">
+        API
+      </button>
+      <button class="action-btn" onclick="togglePanel()" id="panel-btn">
+        Deck
+      </button>
     </div>
 
+    <!-- Execution Stream Area -->
     <div class="chat-area" id="chat-area">
-      <div class="chat-welcome" id="welcome">
-        <div class="welcome-icon">🤖</div>
-        <h1 class="welcome-title">AI Agent — Dual-LLM</h1>
-        <p class="welcome-sub">
-          Ask anything about your codebase, run slash commands to automate tasks,
-          or use <strong>Run Task</strong> mode for autonomous multi-step execution.
+      <div class="welcome-box" id="welcome">
+        <div class="welcome-header">
+          <div class="brand-mark">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+          </div>
+          <div>
+            <div class="welcome-title">Engineering Console</div>
+            <div style="font-size: 11px; color: var(--text-muted);">AST Call-Graph : Blast Analysis : TDD Loops : Git Checkpoints</div>
+          </div>
+        </div>
+        <p class="welcome-desc">
+          Autonomous developer assistant. Ask questions about the codebase, run slash commands, or switch to Run Task mode for multi-step execution with automated syntax pre-flight and turn-level git reversibility.
         </p>
-        <div class="quick-cmds">
-          <span class="quick-chip" onclick="insertCmd('/qa Which database should we use? | SQLite | PostgreSQL | Redis')">/qa DB options</span>
-          <span class="quick-chip" onclick="insertCmd('/tdd ')">/tdd &lt;task&gt;</span>
-          <span class="quick-chip" onclick="sendMessage('/review main.py')">/review main.py</span>
-          <span class="quick-chip" onclick="sendMessage('/stats')">/stats</span>
-          <span class="quick-chip" onclick="sendMessage('/git')">/git</span>
-          <span class="quick-chip" onclick="sendMessage('/security')">/security</span>
+        <div class="quick-grid">
+          <div class="quick-card" onclick="insertCmd('/qa Which database engine should we adopt? | SQLite | PostgreSQL | DuckDB')">
+            <span class="quick-cmd">/qa DB decision</span>
+            <span class="quick-desc">Interactive QA</span>
+          </div>
+          <div class="quick-card" onclick="insertCmd('/tdd ')">
+            <span class="quick-cmd">/tdd &lt;task&gt;</span>
+            <span class="quick-desc">TDD Cycle</span>
+          </div>
+          <div class="quick-card" onclick="sendMessage('/review server/api.py')">
+            <span class="quick-cmd">/review api.py</span>
+            <span class="quick-desc">Code audit</span>
+          </div>
+          <div class="quick-card" onclick="sendMessage('/stats')">
+            <span class="quick-cmd">/stats</span>
+            <span class="quick-desc">Telemetry</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="input-area">
-      <div class="input-wrapper">
+    <!-- Input Console -->
+    <div class="input-deck">
+      <div class="input-box">
         <textarea id="chat-input"
-          placeholder="Ask a question or type /command…"
+          placeholder="Ask a question or enter /command..."
           rows="1"
           onkeydown="handleKey(event)"
           oninput="autoResize(this)"></textarea>
-        <div class="input-actions">
-          <button class="run-btn" id="run-btn" onclick="runTask()" title="Run as autonomous task" disabled>
-            ⚡ Run
+        <div class="input-controls">
+          <button class="run-btn" id="run-btn" onclick="runTask()" title="Execute as autonomous task" disabled>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            Run
           </button>
-          <button class="send-btn" id="send-btn" onclick="sendChat()" title="Send (Enter)">
-            ↑
+          <button class="send-btn" id="send-btn" onclick="sendChat()" title="Send command">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
           </button>
         </div>
       </div>
-      <div class="input-hint">
-        <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> new line · <kbd>⚡ Run</kbd> for autonomous task mode
+      <div class="input-legend">
+        <span><kbd>Enter</kbd> send / execute &bull; <kbd>Shift+Enter</kbd> newline &bull; <kbd>Ctrl+K</kbd> focus</span>
+        <span>Reversible via instant git checkpoints</span>
       </div>
     </div>
 
-    <!-- ── AST Call Graph & Blast Radius Visualizer ────────────────────────── -->
-    <div class="graph-view" id="graph-view" style="display: none; flex: 1; flex-direction: column; overflow: hidden; background: var(--bg-primary);">
-      <div style="display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-wrap: wrap;">
-        <input type="text" id="graph-search" placeholder="Filter symbols (e.g. ask, plan)..." 
-          style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text-primary); font-size: 12px; width: 200px;"
-          oninput="filterGraphNodes(this.value)" />
-        
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <input type="text" id="blast-symbol-input" placeholder="Symbol for blast check..." 
-            style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text-primary); font-size: 12px; width: 180px;"
-            onkeydown="if(event.key==='Enter') runBlastAnalysis()" />
-          <button class="cmd-btn" style="width: auto; padding: 6px 12px; background: var(--accent); color: #fff; font-weight: 500; cursor: pointer; border-radius: 6px;" onclick="runBlastAnalysis()">💥 Blast Check</button>
+    <!-- AST Call Graph and Blast Radius Visualizer -->
+    <div class="graph-view" id="graph-view" style="display: none;">
+      <div class="graph-toolbar">
+        <input type="text" class="graph-input" id="graph-search" placeholder="Filter symbols (e.g. ask, plan)..." style="width: 200px;" oninput="filterGraphNodes(this.value)" />
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <input type="text" class="graph-input" id="blast-symbol-input" placeholder="Symbol for blast check..." style="width: 180px;" onkeydown="if(event.key==='Enter') runBlastAnalysis()" />
+          <button class="action-btn" style="color: var(--signal-amber); border-color: var(--signal-amber);" onclick="runBlastAnalysis()">Blast Check</button>
         </div>
-
-        <button class="cmd-btn" style="width: auto; padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border); cursor: pointer; border-radius: 6px;" onclick="loadGraph()">↻ Refresh</button>
-
-        <div style="margin-left: auto; display: flex; gap: 12px; font-size: 11px; color: var(--text-secondary); align-items: center;">
-          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#388bfd;margin-right:4px;"></span>Function</span>
-          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#bc8cff;margin-right:4px;"></span>Class</span>
-          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fb950;margin-right:4px;"></span>Method</span>
-          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f85149;margin-right:4px;"></span>Impacted</span>
+        <button class="action-btn" onclick="loadGraph()">Refresh Graph</button>
+        <div style="margin-left: auto; display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); align-items: center;">
+          <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#0284c7;margin-right:4px;"></span>Function</span>
+          <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f97316;margin-right:4px;"></span>Class</span>
+          <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;margin-right:4px;"></span>Method</span>
+          <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-right:4px;"></span>Impacted</span>
         </div>
       </div>
 
-      <div style="display: flex; flex: 1; overflow: hidden; position: relative;">
-        <div id="graph-canvas-container" style="flex: 1; position: relative; overflow: auto; background: #0b0f14;">
+      <div class="graph-container">
+        <div class="graph-canvas-box" id="graph-canvas-container">
           <svg id="graph-svg" width="100%" height="100%" style="min-width: 900px; min-height: 700px; display: block;">
             <defs>
               <marker id="arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#484f58"></path>
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#3d424e"></path>
               </marker>
               <marker id="arrow-blast" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#f85149"></path>
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"></path>
               </marker>
             </defs>
             <g id="graph-links"></g>
             <g id="graph-nodes"></g>
           </svg>
-          <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(13,17,23,0.8); color: var(--text-secondary); font-size: 14px;">
-            Loading codebase AST call-graph…
+          <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(9,10,12,0.85); color: var(--text-secondary); font-size: 12px;">
+            Analyzing workspace AST call-graph...
           </div>
         </div>
-        
-        <div id="graph-inspector" style="width: 320px; background: var(--bg-secondary); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto;">
-          <h3 style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">Node Inspector</h3>
-          <div id="inspector-content" style="color: var(--text-secondary); font-size: 13px; line-height: 1.6;">
-            Select any symbol on the graph or run a <strong>Blast Check</strong> to analyze caller ripple effects, importing files, and impacted test suites.
+
+        <div class="graph-inspector" id="graph-inspector">
+          <div class="cell-header" style="margin-bottom: 10px;">Node Inspector</div>
+          <div id="inspector-content" style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;">
+            Select any symbol on the graph or run a Blast Check to trace callers, importing modules, and impacted test suites.
           </div>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- ── Stats panel ───────────────────────────────────────────────────────── -->
-  <aside class="stats-panel" id="stats-panel">
-    <div class="stats-header">Live Stats</div>
-
-    <div class="stat-card">
-      <div class="stat-card-title">Backend</div>
-      <div class="stat-row">
-        <span>Active</span>
-        <span class="stat-val accent" id="stat-backend">—</span>
+  <!-- Right Aside: Bento Telemetry Deck -->
+  <aside class="bento-panel" id="stats-panel">
+    <!-- Cell 1: Gateway Telemetry -->
+    <div class="bento-cell">
+      <div class="cell-header">
+        <span>Model Gateway</span>
+        <span class="cell-badge amber" id="stat-backend">auto</span>
       </div>
-      <div class="stat-row">
+      <div class="telemetry-row">
         <span>Ollama</span>
-        <span class="stat-val" id="stat-ollama">—</span>
+        <span class="telemetry-val" id="stat-ollama">Offline</span>
       </div>
-      <div class="stat-row">
+      <div class="telemetry-row">
         <span>Groq</span>
-        <span class="stat-val" id="stat-groq">—</span>
+        <span class="telemetry-val" id="stat-groq">Offline</span>
       </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-card-title">LLM Calls</div>
-      <div class="stat-row">
+      <div class="telemetry-row">
         <span>Ollama calls</span>
-        <span class="stat-val" id="stat-ollama-calls">0</span>
+        <span class="telemetry-val" id="stat-ollama-calls">0</span>
       </div>
-      <div class="stat-row">
+      <div class="telemetry-row">
         <span>Groq calls</span>
-        <span class="stat-val" id="stat-groq-calls">0</span>
+        <span class="telemetry-val" id="stat-groq-calls">0</span>
       </div>
-      <div class="stat-row">
+      <div class="telemetry-row">
         <span>Cache hits</span>
-        <span class="stat-val green" id="stat-cache">0</span>
+        <span class="telemetry-val emerald" id="stat-cache">0</span>
       </div>
     </div>
 
-    <div class="stat-card">
-      <div class="stat-card-title">Cost (Session)</div>
-      <div class="stat-row">
-        <span>Tokens used</span>
-        <span class="stat-val" id="stat-tokens">0</span>
+    <!-- Cell 2: Token Burn & Cost -->
+    <div class="bento-cell">
+      <div class="cell-header">
+        <span>Session Consumption</span>
+        <span class="cell-badge sky">Budget</span>
       </div>
-      <div class="stat-row">
+      <div class="telemetry-row">
+        <span>Tokens</span>
+        <span class="telemetry-val" id="stat-tokens">0</span>
+      </div>
+      <div class="telemetry-row">
         <span>Estimated cost</span>
-        <span class="stat-val green" id="stat-cost">$0.0000</span>
+        <span class="telemetry-val emerald" id="stat-cost">$0.0000</span>
       </div>
     </div>
 
-    <div class="stat-card">
-      <div class="stat-card-title">Memory</div>
-      <div class="stat-row">
+    <!-- Cell 3: Reversibility Checkpoints -->
+    <div class="bento-cell">
+      <div class="cell-header">
+        <span>Checkpoints Stack</span>
+        <button class="action-btn" style="padding: 1px 6px; font-size: 10px;" onclick="undoRecentCheckpoint()">Undo</button>
+      </div>
+      <div id="checkpoints-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto;">
+        <div style="font-size: 11px; color: var(--text-muted);">No recent checkpoints.</div>
+      </div>
+    </div>
+
+    <!-- Cell 4: Working State Memory -->
+    <div class="bento-cell">
+      <div class="cell-header">
+        <span>Context State</span>
+        <button class="action-btn" style="padding: 1px 6px; font-size: 10px;" onclick="triggerCompact()">Compact</button>
+      </div>
+      <div class="telemetry-row">
         <span>Session turns</span>
-        <span class="stat-val" id="stat-short">0</span>
+        <span class="telemetry-val" id="stat-short">0</span>
       </div>
-      <div class="stat-row">
-        <span>Long-term turns</span>
-        <span class="stat-val" id="stat-long">0</span>
+      <div class="telemetry-row">
+        <span>Long-term memory</span>
+        <span class="telemetry-val" id="stat-long">0</span>
       </div>
-      <div class="stat-row">
+      <div class="telemetry-row">
         <span>Fix patterns</span>
-        <span class="stat-val orange" id="stat-fixes">0</span>
+        <span class="telemetry-val amber" id="stat-fixes">0</span>
       </div>
     </div>
   </aside>
 </div>
 
-<div class="toast-container" id="toasts"></div>
+<div class="toast-deck" id="toasts"></div>
 
 <script>
-// ── Config ────────────────────────────────────────────────────────────────────
-const API = '';   // same origin
+// State Management
+const API = '';
 let currentMode = 'chat';
-let isStreaming  = false;
+let isStreaming = false;
 let panelVisible = true;
-
-// ── Mode ──────────────────────────────────────────────────────────────────────
 let graphDataLoaded = false;
 let globalGraphData = null;
 let activeBlastData = null;
+let _currentBackend = 'auto';
+let _agentBuf = {};
 
+// Mode Switching
 function setMode(mode) {
   currentMode = mode;
   document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
   const activeTab = document.getElementById(`tab-${mode}`);
   if (activeTab) activeTab.classList.add('active');
+
   const topbarTitle = document.getElementById('topbar-title');
   const input = document.getElementById('chat-input');
   const chatArea = document.getElementById('chat-area');
-  const inputArea = document.querySelector('.input-area');
+  const inputDeck = document.querySelector('.input-deck');
   const graphView = document.getElementById('graph-view');
 
   if (mode === 'graph') {
     topbarTitle.textContent = 'AST Call-Graph & Blast Radius Visualizer';
     if (chatArea) chatArea.style.display = 'none';
-    if (inputArea) inputArea.style.display = 'none';
+    if (inputDeck) inputDeck.style.display = 'none';
     if (graphView) graphView.style.display = 'flex';
     if (!graphDataLoaded) loadGraph();
   } else {
     if (chatArea) chatArea.style.display = 'flex';
-    if (inputArea) inputArea.style.display = 'block';
+    if (inputDeck) inputDeck.style.display = 'block';
     if (graphView) graphView.style.display = 'none';
     if (mode === 'run') {
       topbarTitle.textContent = 'Autonomous Task Runner';
-      input.placeholder = 'Describe a task for the agent to execute autonomously…';
+      input.placeholder = 'Describe a task for the agent to execute autonomously...';
     } else {
       topbarTitle.textContent = 'Coding Assistant';
-      input.placeholder = 'Ask a question or type /command…';
+      input.placeholder = 'Ask a question or enter /command...';
     }
   }
 }
 
+// AST Graph Engine
 async function loadGraph() {
   const loading = document.getElementById('graph-loading');
   if (loading) loading.style.display = 'flex';
@@ -920,11 +1520,10 @@ function renderGraph(data, blastData = null) {
   nodesGroup.innerHTML = '';
 
   if (!data || !data.nodes || data.nodes.length === 0) {
-    nodesGroup.innerHTML = '<text x="50" y="50" fill="#8b949e" font-size="14">No AST nodes found in workspace.</text>';
+    nodesGroup.innerHTML = '<text x="40" y="40" fill="#8f96a3" font-size="12">No AST nodes found in workspace.</text>';
     return;
   }
 
-  // Group nodes by file
   const fileGroups = {};
   data.nodes.forEach(n => {
     if (!fileGroups[n.file]) fileGroups[n.file] = [];
@@ -932,10 +1531,10 @@ function renderGraph(data, blastData = null) {
   });
 
   const files = Object.keys(fileGroups).sort();
-  const colSpacing = 280;
-  const rowSpacing = 44;
-  const marginX = 40;
-  const marginY = 50;
+  const colSpacing = 270;
+  const rowSpacing = 38;
+  const marginX = 30;
+  const marginY = 44;
 
   let maxColHeight = 600;
   const nodePositions = {};
@@ -944,11 +1543,10 @@ function renderGraph(data, blastData = null) {
     const x = marginX + colIdx * colSpacing;
     const y = marginY;
 
-    // Column header
     const fileHeader = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     fileHeader.setAttribute('x', x);
-    fileHeader.setAttribute('y', y - 16);
-    fileHeader.setAttribute('fill', '#8b949e');
+    fileHeader.setAttribute('y', y - 14);
+    fileHeader.setAttribute('fill', '#8f96a3');
     fileHeader.setAttribute('font-size', '11');
     fileHeader.setAttribute('font-weight', '600');
     fileHeader.textContent = file;
@@ -956,8 +1554,8 @@ function renderGraph(data, blastData = null) {
 
     fileGroups[file].forEach((node, rowIdx) => {
       const ny = y + rowIdx * rowSpacing;
-      nodePositions[node.id] = { x: x + 10, y: ny, node };
-      if (ny + 80 > maxColHeight) maxColHeight = ny + 80;
+      nodePositions[node.id] = { x: x + 6, y: ny, node };
+      if (ny + 70 > maxColHeight) maxColHeight = ny + 70;
     });
   });
 
@@ -965,7 +1563,6 @@ function renderGraph(data, blastData = null) {
   svg.setAttribute('width', totalWidth);
   svg.setAttribute('height', maxColHeight);
 
-  // Set of affected caller IDs from blastData if present
   const impactedIds = new Set();
   if (blastData) {
     if (blastData.target_symbol) {
@@ -984,7 +1581,6 @@ function renderGraph(data, blastData = null) {
     }
   }
 
-  // Draw links
   (data.links || []).forEach(link => {
     const src = nodePositions[link.source];
     const tgt = nodePositions[link.target];
@@ -999,14 +1595,13 @@ function renderGraph(data, blastData = null) {
       path.setAttribute('d', d);
       path.setAttribute('fill', 'none');
       const isImpacted = blastData && (impactedIds.has(link.source) || impactedIds.has(link.target));
-      path.setAttribute('stroke', isImpacted ? '#f85149' : (link.type === 'call' ? '#30363d' : '#21293a'));
+      path.setAttribute('stroke', isImpacted ? '#ef4444' : '#252b37');
       path.setAttribute('stroke-width', isImpacted ? '2' : '1.2');
       path.setAttribute('marker-end', isImpacted ? 'url(#arrow-blast)' : 'url(#arrow)');
       linksGroup.appendChild(path);
     }
   });
 
-  // Draw nodes
   Object.keys(nodePositions).forEach(nodeId => {
     const item = nodePositions[nodeId];
     const n = item.node;
@@ -1017,34 +1612,30 @@ function renderGraph(data, blastData = null) {
     g.setAttribute('cursor', 'pointer');
     g.onclick = () => inspectNode(n);
 
-    // Node bubble/rect
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', '-6');
-    rect.setAttribute('y', '-14');
-    rect.setAttribute('width', '180');
-    rect.setAttribute('height', '26');
-    rect.setAttribute('rx', '6');
-    rect.setAttribute('fill', isImpacted ? 'rgba(248,81,73,0.18)' : '#161b22');
-    rect.setAttribute('stroke', isImpacted ? '#f85149' : (n.kind === 'class' ? '#bc8cff' : n.kind === 'method' ? '#3fb950' : '#388bfd'));
+    rect.setAttribute('x', '-4');
+    rect.setAttribute('y', '-12');
+    rect.setAttribute('width', '175');
+    rect.setAttribute('height', '24');
+    rect.setAttribute('rx', '4');
+    rect.setAttribute('fill', isImpacted ? 'rgba(239,68,68,0.2)' : '#14171d');
+    rect.setAttribute('stroke', isImpacted ? '#ef4444' : (n.kind === 'class' ? '#f97316' : n.kind === 'method' ? '#10b981' : '#0284c7'));
     rect.setAttribute('stroke-width', isImpacted ? '2' : '1');
     g.appendChild(rect);
 
-    // Kind icon circle
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('cx', '6');
-    circle.setAttribute('cy', '-1');
-    circle.setAttribute('r', '4');
-    circle.setAttribute('fill', n.kind === 'class' ? '#bc8cff' : n.kind === 'method' ? '#3fb950' : '#388bfd');
+    circle.setAttribute('cy', '0');
+    circle.setAttribute('r', '3.5');
+    circle.setAttribute('fill', n.kind === 'class' ? '#f97316' : n.kind === 'method' ? '#10b981' : '#0284c7');
     g.appendChild(circle);
 
-    // Label
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', '16');
-    text.setAttribute('y', '3');
-    text.setAttribute('fill', isImpacted ? '#ff7b72' : '#e6edf3');
+    text.setAttribute('y', '4');
+    text.setAttribute('fill', isImpacted ? '#fca5a5' : '#f4f4f6');
     text.setAttribute('font-size', '11');
-    text.setAttribute('font-family', 'JetBrains Mono, monospace');
-    text.textContent = (n.name.length > 20 ? n.name.slice(0, 19) + '…' : n.name);
+    text.textContent = (n.name.length > 20 ? n.name.slice(0, 19) + '...' : n.name);
     g.appendChild(text);
 
     nodesGroup.appendChild(g);
@@ -1058,11 +1649,11 @@ function filterGraphNodes(query) {
     renderGraph(globalGraphData, activeBlastData);
     return;
   }
-  const filteredNodes = globalGraphData.nodes.filter(n => 
+  const filteredNodes = globalGraphData.nodes.filter(n =>
     n.name.toLowerCase().includes(q) || n.file.toLowerCase().includes(q)
   );
   const nodeIds = new Set(filteredNodes.map(n => n.id));
-  const filteredLinks = (globalGraphData.links || []).filter(l => 
+  const filteredLinks = (globalGraphData.links || []).filter(l =>
     nodeIds.has(l.source) || nodeIds.has(l.target)
   );
   renderGraph({ nodes: filteredNodes, links: filteredLinks }, activeBlastData);
@@ -1072,20 +1663,20 @@ async function inspectNode(node) {
   const inspector = document.getElementById('inspector-content');
   if (!inspector) return;
   inspector.innerHTML = `
-    <div style="margin-bottom: 12px;">
-      <div style="font-size: 15px; font-weight: 600; color: #fff; font-family: monospace;">${escapeHTML(node.name)}</div>
-      <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Kind: ${node.kind} • ${node.file}:${node.line}</div>
+    <div style="margin-bottom: 10px;">
+      <div style="font-size: 13px; font-weight: 600; color: #f4f4f6;">${escapeHTML(node.name)}</div>
+      <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Kind: ${node.kind} &bull; ${node.file}:${node.line}</div>
     </div>
-    <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-secondary);">
-      Args: <code>(${escapeHTML((node.args || []).join(', '))})</code>
+    <div style="margin-bottom: 10px; font-size: 11px; color: var(--text-secondary);">
+      Signature: <code>(${escapeHTML((node.args || []).join(', '))})</code>
     </div>
-    <button class="cmd-btn" style="width: 100%; margin-bottom: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; border-radius: 6px;"
+    <button class="action-btn" style="width: 100%; margin-bottom: 6px; justify-content: center; color: var(--signal-amber); border-color: var(--signal-amber);"
       onclick="runBlastForSymbol('${escapeHTML(node.name)}', '${escapeHTML(node.file)}')">
-      💥 Analyze Blast Radius
+      Analyze Blast Radius
     </button>
-    <button class="cmd-btn" style="width: 100%; margin-bottom: 16px; background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid var(--green); cursor: pointer; border-radius: 6px;"
+    <button class="action-btn" style="width: 100%; margin-bottom: 12px; justify-content: center; color: var(--signal-emerald); border-color: var(--signal-emerald);"
       onclick="startTddForSymbol('${escapeHTML(node.name)}')">
-      🔄 Run TDD Cycle on ${escapeHTML(node.name)}
+      Run TDD Cycle
     </button>
     <div id="inspector-blast-result"></div>
   `;
@@ -1093,7 +1684,7 @@ async function inspectNode(node) {
 
 async function runBlastForSymbol(symbol, file = '') {
   const resultDiv = document.getElementById('inspector-blast-result');
-  if (resultDiv) resultDiv.innerHTML = '<div style="color: var(--text-dim); font-size: 12px;">Calculating AST caller ripple effects…</div>';
+  if (resultDiv) resultDiv.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Computing caller ripple effects...</div>';
   try {
     const res = await fetch(`/blast?symbol=${encodeURIComponent(symbol)}&file=${encodeURIComponent(file)}`);
     const json = await res.json();
@@ -1114,7 +1705,7 @@ async function runBlastAnalysis() {
   if (!symInput) return;
   const sym = symInput.value.trim();
   if (!sym) {
-    toast('Enter a symbol name to check', 'error');
+    toast('Enter symbol name to analyze', 'error');
     return;
   }
   await runBlastForSymbol(sym);
@@ -1124,43 +1715,43 @@ function renderBlastInspector(blast) {
   const resultDiv = document.getElementById('inspector-blast-result');
   if (!resultDiv) return;
 
-  const sevColor = blast.severity === 'HIGH' ? '#f85149' : (blast.severity === 'MEDIUM' ? '#d29922' : '#3fb950');
-  let callersHtml = '<div style="color: var(--text-dim); font-size: 11px;">No direct callers found</div>';
+  const sevColor = blast.severity === 'HIGH' ? '#ef4444' : (blast.severity === 'MEDIUM' ? '#f59e0b' : '#10b981');
+  let callersHtml = '<div style="color: var(--text-muted); font-size: 10px;">No direct callers found</div>';
   if (blast.callers && blast.callers.length > 0) {
     callersHtml = blast.callers.map(c => `
-      <div style="font-family: monospace; font-size: 11px; margin-bottom: 4px; padding: 4px 6px; background: var(--bg-card); border-radius: 4px;">
-        • ${escapeHTML(c.file)}:${c.line} <code>${escapeHTML(c.caller_function || '<module>')}</code>
+      <div style="font-size: 10px; margin-bottom: 3px; padding: 3px 6px; background-color: var(--surface-card); border-radius: 3px;">
+        ${escapeHTML(c.file)}:${c.line} <code>${escapeHTML(c.caller_function || '<module>')}</code>
       </div>
     `).join('');
   }
 
-  let testsHtml = '<div style="color: var(--text-dim); font-size: 11px;">No impacted test suites</div>';
+  let testsHtml = '<div style="color: var(--text-muted); font-size: 10px;">No impacted test suites</div>';
   if (blast.affected_tests && blast.affected_tests.length > 0) {
     testsHtml = blast.affected_tests.map(t => `
-      <div style="font-size: 11px; color: #58a6ff; margin-bottom: 3px;">
-        🧪 ${escapeHTML(t)}
+      <div style="font-size: 10px; color: var(--signal-sky); margin-bottom: 2px;">
+        &bull; ${escapeHTML(t)}
       </div>
     `).join('');
   }
 
   resultDiv.innerHTML = `
-    <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-dim);">Blast Severity</span>
-        <span style="font-size: 11px; font-weight: 700; color: ${sevColor}; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid ${sevColor};">
+    <div class="blast-summary-deck">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Blast Severity</span>
+        <span style="font-size: 10px; font-weight: 700; color: ${sevColor}; padding: 1px 5px; border-radius: 3px; outline: 1px solid ${sevColor};">
           ${blast.severity}
         </span>
       </div>
-      <div style="font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">
-        Direct Callers: <strong style="color: #fff;">${blast.caller_count}</strong>
+      <div style="font-size: 11px; margin-bottom: 6px; color: var(--text-secondary);">
+        Direct Callers: <strong style="color: #f4f4f6;">${blast.caller_count}</strong>
       </div>
-      <div style="margin-bottom: 12px; max-height: 140px; overflow-y: auto;">
+      <div style="margin-bottom: 10px; max-height: 120px; overflow-y: auto;">
         ${callersHtml}
       </div>
-      <div style="font-size: 12px; margin-bottom: 6px; color: var(--text-secondary);">
-        Impacted Test Suites: <strong style="color: #fff;">${(blast.affected_tests || []).length}</strong>
+      <div style="font-size: 11px; margin-bottom: 4px; color: var(--text-secondary);">
+        Impacted Test Suites: <strong style="color: #f4f4f6;">${(blast.affected_tests || []).length}</strong>
       </div>
-      <div style="max-height: 120px; overflow-y: auto;">
+      <div style="max-height: 100px; overflow-y: auto;">
         ${testsHtml}
       </div>
     </div>
@@ -1169,18 +1760,18 @@ function renderBlastInspector(blast) {
 
 function startTddForSymbol(symbolName) {
   setMode('chat');
-  insertCmd(`/tdd Implement improvements and tests for ${symbolName}`);
+  insertCmd(`/tdd Implement tests and logic for ${symbolName}`);
 }
 
 function togglePanel() {
   const panel = document.getElementById('stats-panel');
-  const btn   = document.getElementById('panel-btn');
+  const btn = document.getElementById('panel-btn');
   panelVisible = !panelVisible;
   panel.style.display = panelVisible ? '' : 'none';
-  btn.textContent = panelVisible ? '◀ Panel' : '▶ Panel';
+  btn.style.color = panelVisible ? 'var(--text-primary)' : 'var(--text-secondary)';
 }
 
-// ── Message handling ──────────────────────────────────────────────────────────
+// Input and Messaging
 function insertCmd(cmd) {
   const inp = document.getElementById('chat-input');
   inp.value = cmd + ' ';
@@ -1198,7 +1789,7 @@ function handleKey(e) {
 
 function autoResize(el) {
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+  el.style.height = Math.min(el.scrollHeight, 180) + 'px';
   const hasText = el.value.trim().length > 0;
   document.getElementById('send-btn').disabled = !hasText || isStreaming;
   document.getElementById('run-btn').disabled  = !hasText || isStreaming;
@@ -1227,26 +1818,24 @@ async function sendMessage(msg, asTask = false) {
   appendMessage('user', msg);
   setStreaming(true);
 
-  // Slash commands ALWAYS go to /command (even in Run Task mode)
   const isSlash = msg.startsWith('/') && !asTask;
 
   try {
     if (isSlash) {
-      // ── Slash command — blocking JSON response ─────────────────────────────────────
       const typingId = appendTyping();
       const resp = await fetch(API + '/command', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ command: msg }),
+        body: JSON.stringify({ command: msg }),
       });
       removeTyping(typingId);
 
       const data = await resp.json();
       if (!resp.ok) {
-        appendMessage('agent', `❌ **${resp.status}**: ${data.detail || JSON.stringify(data)}`);
+        appendMessage('agent', `Command error (${resp.status}): ${data.detail || JSON.stringify(data)}`);
         toast(`Command failed: ${resp.status}`, 'error');
       } else {
-        const raw    = data.result;
+        const raw = data.result;
         const result = raw === null || raw === undefined
           ? '(no output)'
           : typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
@@ -1255,10 +1844,10 @@ async function sendMessage(msg, asTask = false) {
         finaliseMessage(msgId);
       }
       refreshStats();
+      checkPendingQA();
       return;
     }
 
-    // ── Chat / Run — SSE streaming ────────────────────────────────────────────────
     const typingId = appendTyping();
     const body = (asTask || currentMode === 'run')
       ? JSON.stringify({ task: msg })
@@ -1266,7 +1855,7 @@ async function sendMessage(msg, asTask = false) {
     const endpoint = (asTask || currentMode === 'run') ? '/run' : '/chat';
 
     const resp = await fetch(API + endpoint, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
     });
@@ -1274,7 +1863,7 @@ async function sendMessage(msg, asTask = false) {
     if (!resp.ok) {
       removeTyping(typingId);
       const errText = await resp.text().catch(() => resp.statusText);
-      appendMessage('agent', `❌ **HTTP ${resp.status}**: ${errText}`);
+      appendMessage('agent', `Server error (${resp.status}): ${errText}`);
       toast(`Server error: ${resp.status}`, 'error');
       return;
     }
@@ -1282,7 +1871,7 @@ async function sendMessage(msg, asTask = false) {
     removeTyping(typingId);
     const msgId = appendAgentMessage();
 
-    const reader  = resp.body.getReader();
+    const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
     let streamDone = false;
@@ -1299,34 +1888,35 @@ async function sendMessage(msg, asTask = false) {
         if (line.startsWith('data: ')) {
           try {
             const token = JSON.parse(line.slice(6));
-            if (token !== null && token !== undefined && token !== '')
+            if (token !== null && token !== undefined && token !== '') {
               appendToken(msgId, token);
+            }
           } catch {}
         }
         if (line.startsWith('event: done')) {
-          finaliseMessage(msgId);   // first and only call
+          finaliseMessage(msgId);
           streamDone = true;
-          break outer;              // stop reading immediately — prevents double-finalise
+          break outer;
         }
         if (line.startsWith('event: error')) {
-          toast('Streaming error', 'error');
+          toast('Streaming communication error', 'error');
         }
       }
     }
 
-    // Safety net: finalise only if event:done was never received
     finaliseMessage(msgId);
     refreshStats();
+    checkPendingQA();
 
   } catch (err) {
-    appendMessage('system', `❌ Network error: ${err.message}. Is the server running?`);
+    appendMessage('system', `Network connection failed: ${err.message}. Ensure backend is active.`);
     toast(err.message, 'error');
   } finally {
     setStreaming(false);
   }
 }
 
-// ── DOM helpers ───────────────────────────────────────────────────────────────
+// DOM Rendering
 function hideWelcome() {
   const w = document.getElementById('welcome');
   if (w) w.remove();
@@ -1334,47 +1924,54 @@ function hideWelcome() {
 
 function appendMessage(role, text) {
   const area = document.getElementById('chat-area');
-  const row  = document.createElement('div');
-  row.className = `msg-row ${role}`;
+  const card = document.createElement('div');
+  card.className = `turn-card ${role}`;
 
   if (role === 'system') {
-    row.innerHTML = `<div class="msg-bubble system">${escapeHTML(text)}</div>`;
+    card.innerHTML = `<div class="turn-content">${escapeHTML(text)}</div>`;
   } else {
-    const ts   = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const label = role === 'user' ? 'You' : 'Agent';
-    const av    = role === 'user' ? 'U' : '🤖';
-    row.innerHTML = `
-      <div class="msg-meta">
-        <div class="avatar ${role}">${av}</div>
-        <span>${label}</span>
-        <span style="opacity:.5">${ts}</span>
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isUser = role === 'user';
+    const authorTitle = isUser ? 'User' : 'Autonomous Agent';
+    const badgeClass = isUser ? 'user-badge' : 'agent-badge';
+    const badgeLabel = isUser ? 'Client' : 'Agent';
+
+    card.innerHTML = `
+      <div class="turn-header">
+        <div class="turn-author">
+          <span>${authorTitle}</span>
+          <span class="turn-badge ${badgeClass}">${badgeLabel}</span>
+        </div>
+        <div class="turn-time">${ts}</div>
       </div>
-      <div class="msg-bubble ${role}">${role === 'user' ? escapeHTML(text) : renderMarkdown(text)}</div>
+      <div class="turn-content">
+        ${isUser ? `<div class="user-prompt-cmd">${escapeHTML(text)}</div>` : renderMarkdown(text)}
+      </div>
     `;
   }
-  area.appendChild(row);
+  area.appendChild(card);
   area.scrollTop = area.scrollHeight;
-  return row;
+  return card;
 }
-
-let _agentBuf = {};
 
 function appendAgentMessage() {
   const area = document.getElementById('chat-area');
-  const id   = 'msg-' + Date.now();
-  const ts   = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const row  = document.createElement('div');
-  row.className = 'msg-row agent';
-  row.id = id;
-  row.innerHTML = `
-    <div class="msg-meta">
-      <div class="avatar agent">🤖</div>
-      <span>Agent</span>
-      <span style="opacity:.5">${ts}</span>
+  const id = 'msg-' + Date.now();
+  const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const card = document.createElement('div');
+  card.className = 'turn-card agent';
+  card.id = id;
+  card.innerHTML = `
+    <div class="turn-header">
+      <div class="turn-author">
+        <span>Autonomous Agent</span>
+        <span class="turn-badge agent-badge">Streaming</span>
+      </div>
+      <div class="turn-time">${ts}</div>
     </div>
-    <div class="msg-bubble agent" id="${id}-bubble"></div>
+    <div class="turn-content" id="${id}-body"></div>
   `;
-  area.appendChild(row);
+  area.appendChild(card);
   _agentBuf[id] = '';
   area.scrollTop = area.scrollHeight;
   return id;
@@ -1384,50 +1981,95 @@ function appendToken(id, token) {
   if (token === null || token === undefined) return;
   const str = typeof token === 'string' ? token : JSON.stringify(token, null, 2);
   _agentBuf[id] = (_agentBuf[id] || '') + str;
-  const bubble = document.getElementById(`${id}-bubble`);
-  if (bubble) {
-    bubble.innerHTML = renderMarkdown(_agentBuf[id]) + '<span class="cursor">▋</span>';
+  const body = document.getElementById(`${id}-body`);
+  if (body) {
+    body.innerHTML = renderMarkdown(_agentBuf[id]) + '<span class="cursor">&block;</span>';
     document.getElementById('chat-area').scrollTop = 99999;
   }
 }
 
 function finaliseMessage(id) {
-  // Idempotent — second call is a no-op so double-finalise can't blank the bubble
   if (!Object.prototype.hasOwnProperty.call(_agentBuf, id)) return;
-  const bubble = document.getElementById(`${id}-bubble`);
-  if (bubble) {
-    bubble.innerHTML = renderMarkdown(_agentBuf[id] || '');
-    // Syntax highlight code blocks
-    bubble.querySelectorAll('pre code').forEach(el => {
+  const body = document.getElementById(`${id}-body`);
+  if (body) {
+    body.innerHTML = renderMarkdown(_agentBuf[id] || '');
+    body.querySelectorAll('pre code').forEach(el => {
       hljs.highlightElement(el);
-      // Add copy button
       const pre = el.parentElement;
       const btn = document.createElement('button');
       btn.className = 'copy-btn';
       btn.textContent = 'Copy';
-      btn.onclick = () => { navigator.clipboard.writeText(el.textContent); btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1500); };
+      btn.onclick = () => {
+        navigator.clipboard.writeText(el.textContent);
+        btn.textContent = 'Copied';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+      };
       pre.style.position = 'relative';
       pre.appendChild(btn);
     });
+
+    // Check for interactive QA block in response text
+    parseQAFromText(_agentBuf[id], body);
+
     document.getElementById('chat-area').scrollTop = 99999;
   }
   delete _agentBuf[id];
 }
 
+function parseQAFromText(text, container) {
+  if (!text) return;
+  const match = text.match(/```ask_user\s*([\s\S]*?)```/);
+  if (!match) return;
+
+  const raw = match[1].trim();
+  const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return;
+
+  const question = parts[0];
+  const options = parts.slice(1);
+
+  const qaCard = document.createElement('div');
+  qaCard.className = 'qa-card';
+  qaCard.innerHTML = `
+    <div class="qa-title">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      Decision Required: ${escapeHTML(question)}
+    </div>
+    <div class="qa-options" id="qa-opts-${Date.now()}">
+      ${options.map((opt, idx) => `
+        <button class="qa-btn" onclick="submitInlineQA('${escapeHTML(opt)}')">
+          <span class="qa-num">${idx + 1}</span>
+          ${escapeHTML(opt)}
+        </button>
+      `).join('')}
+    </div>
+  `;
+  container.appendChild(qaCard);
+}
+
+function submitInlineQA(answer) {
+  sendMessage(answer);
+}
+
 function appendTyping() {
   const area = document.getElementById('chat-area');
-  const id   = 'typing-' + Date.now();
-  const row  = document.createElement('div');
-  row.className = 'msg-row agent';
-  row.id = id;
-  row.innerHTML = `
-    <div class="msg-meta">
-      <div class="avatar agent">🤖</div>
-      <span>Agent</span>
+  const id = 'typing-' + Date.now();
+  const card = document.createElement('div');
+  card.className = 'turn-card agent';
+  card.id = id;
+  card.innerHTML = `
+    <div class="turn-header">
+      <div class="turn-author">
+        <span>Autonomous Agent</span>
+        <span class="turn-badge agent-badge">Processing</span>
+      </div>
     </div>
-    <div class="typing"><span></span><span></span><span></span></div>
+    <div class="stream-status">
+      <span>Executing request</span>
+      <span class="cursor">&block;</span>
+    </div>
   `;
-  area.appendChild(row);
+  area.appendChild(card);
   area.scrollTop = area.scrollHeight;
   return id;
 }
@@ -1449,62 +2091,53 @@ function clearChat() {
   _agentBuf = {};
 }
 
-// ── Markdown renderer ─────────────────────────────────────────────────────────
+// Markdown Parser
 function renderMarkdown(text) {
   if (!text) return '';
 
-  // ── Step 1: extract fenced code blocks FIRST (protect from later transforms)
   const _blocks = [];
   let html = text.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, (_, lang, code) => {
     const idx = _blocks.length;
     _blocks.push(
       `<pre><code class="language-${lang || 'plaintext'}">${escapeHTML(code.trim())}</code></pre>`
     );
-    return `\x00BLOCK${idx}\x00`;   // placeholder — immune to later transforms
+    return `\x00BLOCK${idx}\x00`;
   });
 
-  // ── Step 2: escape HTML in non-code regions
   html = escapeHTML(html);
 
-  // ── Step 3: inline code  (backtick content already safe, just wrap in <code>)
-  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  // Thought drawer detection (<thought> ... </thought>)
+  html = html.replace(/&lt;thought&gt;([\s\S]*?)&lt;\/thought&gt;/gi, (_, thoughtText) => {
+    return `<div class="thought-drawer">
+      <div class="thought-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        Reasoning Strategy Trace
+      </div>
+      <div class="thought-body">${thoughtText.trim()}</div>
+    </div>`;
+  });
 
-  // ── Step 4: emphasis
+  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
-
-  // ── Step 5: headings
   html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
   html = html.replace(/^### (.+)$/gm,  '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm,   '<h2>$1</h2>');
   html = html.replace(/^# (.+)$/gm,    '<h1>$1</h1>');
-
-  // ── Step 6: lists
   html = html.replace(/^[ \t]*[-*] (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>[\s\S]*?<\/li>)(\n<li>[\s\S]*?<\/li>)*/g,
-    m => `<ul>${m}</ul>`);
+  html = html.replace(/(<li>[\s\S]*?<\/li>)(\n<li>[\s\S]*?<\/li>)*/g, m => `<ul>${m}</ul>`);
   html = html.replace(/^[ \t]*\d+[.)]\ (.+)$/gm, '<li class="ol-item">$1</li>');
-  html = html.replace(/(<li class="ol-item">[\s\S]*?<\/li>)(\n<li class="ol-item">[\s\S]*?<\/li>)*/g,
-    m => `<ol>${m.replace(/ class="ol-item"/g, '')}</ol>`);
-
-  // ── Step 7: blockquote / hr
+  html = html.replace(/(<li class="ol-item">[\s\S]*?<\/li>)(\n<li class="ol-item">[\s\S]*?<\/li>)*/g, m => `<ol>${m.replace(/ class="ol-item"/g, '')}</ol>`);
   html = html.replace(/^&gt;[ \t]?(.+)$/gm, '<blockquote>$1</blockquote>');
-  html = html.replace(/^---+$/gm,
-    '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">');
 
-  // ── Step 8: paragraphs (must not touch placeholders)
-  // Split on blank lines, but skip lines that are block-level
   const paras = html.split(/\n{2,}/);
   html = paras.map(p => {
     p = p.trim();
     if (!p) return '';
-    // already a block element or a placeholder — don't wrap
-    if (/^\x00BLOCK/.test(p) ||
-        /^<(h[1-6]|ul|ol|pre|blockquote|hr|li)/.test(p)) return p;
+    if (/^\x00BLOCK/.test(p) || /^<(h[1-6]|ul|ol|pre|blockquote|div|li)/.test(p)) return p;
     return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
   }).join('\n');
 
-  // ── Step 9: restore code blocks
   html = html.replace(/\x00BLOCK(\d+)\x00/g, (_, i) => _blocks[+i]);
 
   return html;
@@ -1514,31 +2147,31 @@ function escapeHTML(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Backend selector ─────────────────────────────────────────────────────────
-let _currentBackend = 'auto';
-
+// Backend Switching
 async function switchBackend(choice) {
-  if (isStreaming) { toast('Cannot switch while streaming', 'error'); return; }
+  if (isStreaming) {
+    toast('Cannot switch backend while streaming', 'error');
+    return;
+  }
   const btn = document.getElementById(`btn-${choice}`);
   if (!btn || btn.disabled) return;
 
-  // Optimistic UI
   _setBackendUI(choice);
 
   try {
     const r = await fetch(API + '/backend', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ backend: choice }),
+      body: JSON.stringify({ backend: choice }),
     });
     const d = await r.json();
     if (!r.ok) {
-      toast(`❌ ${d.detail || 'Switch failed'}`, 'error');
-      _setBackendUI(_currentBackend); // revert
+      toast(d.detail || 'Backend switch failed', 'error');
+      _setBackendUI(_currentBackend);
       return;
     }
     _currentBackend = choice;
-    toast(`✅ ${d.message}`, 'success');
+    toast(d.message || `Switched to ${choice}`, 'success');
     refreshStats();
   } catch (e) {
     toast('Network error switching backend', 'error');
@@ -1552,65 +2185,201 @@ function _setBackendUI(active) {
     if (!btn) return;
     btn.className = 'backend-btn' + (b === active ? ` active-${b}` : '');
   });
-  // Also update stats panel
   const el = document.getElementById('stat-backend');
   if (el) el.textContent = active;
 }
 
 async function _syncBackendSelector(ollamaUp, groqUp, currentBackend) {
-  // Disable buttons for unavailable backends
   const localBtn = document.getElementById('btn-local');
   const groqBtn  = document.getElementById('btn-groq');
   if (localBtn) localBtn.disabled = !ollamaUp;
   if (groqBtn)  groqBtn.disabled  = !groqUp;
 
-  // Set dots
   const dotMap = { auto: ollamaUp || groqUp, local: ollamaUp, groq: groqUp };
   ['auto', 'local', 'groq'].forEach(b => {
     const dot = document.getElementById(`dot-${b}`);
     if (dot) dot.className = 'backend-dot ' + (dotMap[b] ? 'up' : 'down');
   });
 
-  // Set active button
   _setBackendUI(currentBackend);
   _currentBackend = currentBackend;
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// Checkpoints & Rollback
+async function loadCheckpoints() {
+  try {
+    const res = await fetch('/checkpoints');
+    const data = await res.json();
+    const container = document.getElementById('checkpoints-list');
+    if (!container) return;
+
+    if (!data.ok || !data.checkpoints || data.checkpoints.length === 0) {
+      container.innerHTML = '<div style="font-size: 11px; color: var(--text-muted);">No turn checkpoints recorded.</div>';
+      return;
+    }
+
+    container.innerHTML = data.checkpoints.slice(0, 5).map(cp => `
+      <div class="checkpoint-item">
+        <div class="checkpoint-meta">
+          <span class="checkpoint-id">${escapeHTML(cp.id || 'chk')}</span>
+          <span class="checkpoint-desc">${escapeHTML(cp.description || 'Turn mutation')}</span>
+        </div>
+        <button class="checkpoint-revert-btn" onclick="restoreSpecificCheckpoint('${escapeHTML(cp.id)}')">
+          Revert
+        </button>
+      </div>
+    `).join('');
+  } catch (e) {
+    // Suppress silently if endpoint unavailable
+  }
+}
+
+async function undoRecentCheckpoint() {
+  try {
+    const res = await fetch('/checkpoints/undo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast(`Restored checkpoint ${data.checkpoint_id || ''}`, 'success');
+      appendMessage('system', `Restored workspace to prior checkpoint: ${data.checkpoint_id || 'head'}`);
+      loadCheckpoints();
+    } else {
+      toast(data.error || 'Failed to restore checkpoint', 'error');
+    }
+  } catch (e) {
+    toast('Undo network error: ' + e.message, 'error');
+  }
+}
+
+async function restoreSpecificCheckpoint(id) {
+  try {
+    const res = await fetch('/checkpoints/undo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkpoint_id: id }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast(`Restored to ${id}`, 'success');
+      appendMessage('system', `Restored workspace to checkpoint: ${id}`);
+      loadCheckpoints();
+    } else {
+      toast(data.error || 'Revert failed', 'error');
+    }
+  } catch (e) {
+    toast('Revert error: ' + e.message, 'error');
+  }
+}
+
+// Compact Working Memory
+async function triggerCompact() {
+  try {
+    const res = await fetch('/compact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keep_last: 2 }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast('Working memory compacted', 'success');
+      refreshStats();
+    } else {
+      toast(data.error || 'Compact failed', 'error');
+    }
+  } catch (e) {
+    toast('Error triggering compact', 'error');
+  }
+}
+
+// Interactive QA Polling
+async function checkPendingQA() {
+  try {
+    const res = await fetch('/qa/pending');
+    const data = await res.json();
+    if (data.ok && data.questions && data.questions.length > 0) {
+      const q = data.questions[0];
+      const area = document.getElementById('chat-area');
+      const card = document.createElement('div');
+      card.className = 'turn-card agent';
+      card.innerHTML = `
+        <div class="turn-header">
+          <div class="turn-author">
+            <span>Decision Gateway</span>
+            <span class="turn-badge agent-badge">Interactive</span>
+          </div>
+        </div>
+        <div class="turn-content">
+          <div class="qa-card">
+            <div class="qa-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              ${escapeHTML(q.question)}
+            </div>
+            <div class="qa-options">
+              ${(q.options || []).map((opt, i) => `
+                <button class="qa-btn" onclick="answerQA('${escapeHTML(q.id)}', '${escapeHTML(opt)}')">
+                  <span class="qa-num">${i + 1}</span>
+                  ${escapeHTML(opt)}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      area.appendChild(card);
+      area.scrollTop = area.scrollHeight;
+    }
+  } catch (e) {}
+}
+
+async function answerQA(qid, answerText) {
+  try {
+    const res = await fetch('/qa/answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: qid, answer: answerText }),
+    });
+    const d = await res.json();
+    if (d.ok) {
+      toast(`Selected: ${answerText}`, 'success');
+      appendMessage('user', answerText);
+    }
+  } catch (e) {
+    toast('Error submitting answer', 'error');
+  }
+}
+
+// Telemetry Refresh
 async function refreshStats() {
   try {
     const [health, stats, mem, backend] = await Promise.all([
-      fetch(API + '/health').then(r  => r.json()),
-      fetch(API + '/stats').then(r   => r.json()),
-      fetch(API + '/memory').then(r  => r.json()),
+      fetch(API + '/health').then(r => r.json()),
+      fetch(API + '/stats').then(r => r.json()),
+      fetch(API + '/memory').then(r => r.json()),
       fetch(API + '/backend').then(r => r.json()),
     ]);
 
-    // Sidebar backend status dots
     const od = document.getElementById('ollama-dot');
     const gd = document.getElementById('groq-dot');
-    od.className = 'dot ' + (health.ollama ? 'green' : 'red');
-    gd.className = 'dot ' + (health.groq   ? 'green' : 'red');
+    od.className = 'status-dot ' + (health.ollama ? 'up' : 'down');
+    gd.className = 'status-dot ' + (health.groq   ? 'up' : 'down');
     document.getElementById('ollama-label').textContent = 'Ollama: ' + (health.ollama ? 'Online' : 'Offline');
     document.getElementById('groq-label').textContent   = 'Groq: '   + (health.groq   ? 'Online' : 'Offline');
 
-    // Sync backend selector buttons
     await _syncBackendSelector(health.ollama, health.groq, backend.backend || health.backend || 'auto');
 
-    // Stats panel
-    const backendColors = { auto: 'accent', local: 'green', groq: 'orange' };
     const bel = document.getElementById('stat-backend');
     if (bel) {
-      bel.textContent = backend.backend || health.backend || '—';
-      bel.className   = 'stat-val ' + (backendColors[backend.backend] || 'accent');
+      bel.textContent = backend.backend || health.backend || 'auto';
     }
-    document.getElementById('stat-ollama').textContent       = health.ollama ? '✓ Online' : '✗ Offline';
-    document.getElementById('stat-groq').textContent         = health.groq   ? '✓ Online' : '✗ Offline';
+    document.getElementById('stat-ollama').textContent       = health.ollama ? 'Online' : 'Offline';
+    document.getElementById('stat-groq').textContent         = health.groq   ? 'Online' : 'Offline';
     document.getElementById('stat-ollama-calls').textContent = stats.llm?.ollama_calls ?? 0;
     document.getElementById('stat-groq-calls').textContent   = stats.llm?.groq_calls   ?? 0;
-    document.getElementById('stat-cache').textContent        = stats.llm?.cache_hits    ?? 0;
+    document.getElementById('stat-cache').textContent        = stats.llm?.cache_hits   ?? 0;
 
-    // Parse cost from summary string
     const costMatch  = (stats.cost_summary || '').match(/\$(\d+\.\d+)/);
     const tokenMatch = (stats.cost_summary || '').match(/Tokens used\s*:\s*([\d,]+)/);
     document.getElementById('stat-cost').textContent   = costMatch  ? '$' + costMatch[1] : '$0.0000';
@@ -1620,36 +2389,40 @@ async function refreshStats() {
     document.getElementById('stat-long').textContent  = mem.long_memory?.total_turns ?? 0;
     document.getElementById('stat-fixes').textContent = mem.fix_patterns ?? 0;
 
-  } catch (err) {
-    // Silently fail — don't interrupt the UI
-  }
+    loadCheckpoints();
+
+  } catch (err) {}
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+// Toasts
 function toast(msg, type = 'success') {
   const container = document.getElementById('toasts');
   const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span>${escapeHTML(msg)}`;
+  el.className = `toast-entry ${type}`;
+  const icon = type === 'success'
+    ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+  el.innerHTML = `${icon}<span>${escapeHTML(msg)}</span>`;
   container.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  setTimeout(() => el.remove(), 3200);
 }
 
 function openApiDocs() { window.open('/docs', '_blank'); }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// Initialization
 document.addEventListener('DOMContentLoaded', () => {
   refreshStats();
   setInterval(refreshStats, 15000);
 
-  // Keyboard shortcuts
   document.addEventListener('keydown', e => {
-    // Ctrl+K → focus input
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       document.getElementById('chat-input').focus();
     }
-    // Ctrl+1/2/3 → switch backend
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      undoRecentCheckpoint();
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === '1') switchBackend('auto');
     if ((e.ctrlKey || e.metaKey) && e.key === '2') switchBackend('local');
     if ((e.ctrlKey || e.metaKey) && e.key === '3') switchBackend('groq');
