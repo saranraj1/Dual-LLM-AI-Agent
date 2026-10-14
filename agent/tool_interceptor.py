@@ -58,88 +58,10 @@ def extract_qwen_tool_calls(text: str) -> List[Dict[str, Any]]:
 
 
 def execute_tool_call(func: str, params: Dict[str, Any], workspace: str = ".") -> str:
-    """Execute a single tool call safely inside the workspace."""
-    func_norm = func.lower().replace("-", "_")
-    ws = os.path.abspath(workspace)
-
-    try:
-        # File listing
-        if func_norm in ("list_files", "list_dir", "ls", "dir", "get_files"):
-            rel_path = params.get("path", ".")
-            target_dir = os.path.normpath(os.path.join(ws, rel_path))
-            res = list_dir(target_dir, depth=int(params.get("depth", 2)))
-            if res.get("ok"):
-                entries = res.get("entries", [])
-                lines = [f"{e['path']} ({e['type']})" for e in entries[:40]]
-                if len(entries) > 40:
-                    lines.append(f"... (+{len(entries)-40} more)")
-                return "\n".join(lines) or "(empty directory)"
-            return f"Error: {res.get('error', 'Could not list directory')}"
-
-        # Reading file
-        elif func_norm in ("read_file", "view_file", "cat", "get_file"):
-            rel_path = params.get("path", "")
-            target_file = os.path.normpath(os.path.join(ws, rel_path))
-            res = read_file(target_file)
-            if res.get("ok"):
-                content = res.get("content", "")
-                lines = content.splitlines()
-                offset = max(0, int(params.get("offset", 1)) - 1)
-                limit = int(params.get("limit", 150))
-                sliced = lines[offset:offset + limit]
-                return "\n".join(f"{offset + i + 1}: {line}" for i, line in enumerate(sliced)) or "(empty file)"
-            return f"Error: {res.get('error', 'File not found')}"
-
-        # Grep search
-        elif func_norm in ("grep_search", "search_files", "find_in_files", "search"):
-            query = params.get("query", "")
-            if not query:
-                return "Error: query parameter required"
-            from tools.file_tools import search_in_files
-            res = search_in_files(ws, query, max_results=25)
-            if not res.get("ok"):
-                return f"Error: {res.get('error', 'Search failed')}"
-            hits = [f"{m['file']}:{m['line_no']}: {m['content']}" for m in res.get("matches", [])]
-            return "\n".join(hits) or f"No matches found for '{query}'"
-
-        # Shell command
-        elif func_norm in ("shell_command", "run_command", "bash", "terminal"):
-            cmd = params.get("command", "") or params.get("cmd", "")
-            if not cmd:
-                return "Error: command parameter required"
-            res = run_command(cmd, cwd=ws)
-            out = res.get("stdout", "").strip()
-            err = res.get("stderr", "").strip()
-            if res.get("ok"):
-                return out or "(Command succeeded with no output)"
-            return f"Command exit {res.get('exit')}: {err}\n{out}".strip()
-
-        # Writing file
-        elif func_norm in ("write_file", "create_file"):
-            rel_path = params.get("path", "")
-            content = params.get("content", "")
-            target_file = os.path.normpath(os.path.join(ws, rel_path))
-            res = write_file(target_file, content)
-            if res.get("ok"):
-                return f"Successfully wrote {rel_path} ({len(content)} chars)"
-            return f"Error: {res.get('error')}"
-
-        # Surgical edit
-        elif func_norm in ("edit_file", "replace_in_file"):
-            rel_path = params.get("path", "")
-            target = params.get("target", "")
-            replacement = params.get("replacement", "")
-            target_file = os.path.normpath(os.path.join(ws, rel_path))
-            res = replace_in_file(target_file, target, replacement)
-            if res.get("ok"):
-                return f"Successfully updated {rel_path}"
-            return f"Error: {res.get('error')}"
-
-        else:
-            return f"Tool '{func}' is not supported."
-
-    except Exception as exc:
-        return f"Error executing tool '{func}': {exc}"
+    """Execute a single tool call safely inside the workspace via ToolRegistry."""
+    from agent.react_harness import ToolRegistry
+    registry = ToolRegistry(workspace=workspace)
+    return registry.execute(func, params)
 
 
 def resolve_tool_calls_text(

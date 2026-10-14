@@ -696,6 +696,25 @@ async def react_run_endpoint(req: ReactRunRequest):
     return res
 
 
+@app.post("/react/stream")
+@app.post("/api/react/stream")
+async def react_stream_endpoint(req: ReactRunRequest):
+    """Execute task via the unified ReAct tool-calling harness and stream live events as SSE."""
+    from agent.react_harness import ToolRegistry, run_react_loop_stream
+    agent = get_agent()
+    registry = ToolRegistry(workspace=agent.workspace)
+
+    def _event_generator():
+        for event in run_react_loop_stream(req.task, registry=registry, max_turns=req.max_turns or 5):
+            yield json.dumps(event)
+
+    return StreamingResponse(
+        _stream_response(_event_generator()),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def serve(host: str = "0.0.0.0", port: int = 8000, workspace: str = "."):
