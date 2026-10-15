@@ -34,6 +34,8 @@ GROQ_MODEL      = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")   # Qwen 3.8 27B o
 GROQ_HOST       = "https://api.groq.com/openai/v1"
 GROQ_MAX_TOKENS = int(os.getenv("GROQ_MAX_TOKENS", "4096"))
 AUTO_FALLBACK   = True                # auto-switch to Groq if Ollama fails/OOM
+OLLAMA_TIMEOUT  = int(os.getenv("OLLAMA_TIMEOUT", "15"))
+GROQ_TIMEOUT    = int(os.getenv("GROQ_TIMEOUT", "30"))
 
 
 # ── Hardware (GTX 1650 + Ryzen 5660H) ────────────────────────────────────────

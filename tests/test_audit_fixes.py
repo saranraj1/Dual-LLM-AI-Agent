@@ -25,8 +25,8 @@ class TestMemoryCleanliness:
     def test_chat_does_not_compound_history(self, tmp_path):
         from agent.agent import Agent
         agent = Agent(workspace=str(tmp_path))
-        # Mock ask_stream
-        with patch("agent.agent.ask_stream", return_value=iter(["Hello there!"])):
+        # Mock resolve_tool_calls_stream
+        with patch("agent.tool_interceptor.resolve_tool_calls_stream", return_value=iter(["Hello there!"])):
             agent.chat("First question")
             agent.chat("Second question")
 

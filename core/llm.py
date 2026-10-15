@@ -29,6 +29,7 @@ from config.settings import (
     MODEL_NAME, OLLAMA_HOST, CONTEXT_WINDOW, MAX_TOKENS,
     GPU_LAYERS, CPU_THREADS, NUM_BATCH,
     GROQ_API_KEY, GROQ_MODEL, GROQ_HOST, GROQ_MAX_TOKENS, AUTO_FALLBACK,
+    OLLAMA_TIMEOUT, GROQ_TIMEOUT,
 )
 
 from core.exceptions import LLMError, BackendUnavailableError
@@ -126,7 +127,7 @@ def _ollama_ask(prompt: str, system: Optional[str] = None) -> str:
             f"{OLLAMA_HOST}/api/generate", data=data,
             headers={"Content-Type": "application/json"}, method="POST"
         )
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
             _stats["ollama_calls"] += 1
             result = json.loads(resp.read().decode()).get("response", "").strip()
             # Record in cost tracker (Ollama is free)
@@ -136,7 +137,7 @@ def _ollama_ask(prompt: str, system: Optional[str] = None) -> str:
                 ct.record("local", MODEL_NAME, tokens // 2, tokens // 2)
             log.debug("ollama_ask completed", extra={"tokens_est": len(prompt) // 4})
             return result
-    return with_retry(_call, label="ollama_ask")
+    return with_retry(_call, label="ollama_ask", max_retries=1, base_delay=0.5)
 
 
 def _ollama_stream(prompt: str, system: Optional[str] = None) -> Generator[str, None, None]:
@@ -145,7 +146,7 @@ def _ollama_stream(prompt: str, system: Optional[str] = None) -> Generator[str, 
         f"{OLLAMA_HOST}/api/generate", data=data,
         headers={"Content-Type": "application/json"}, method="POST"
     )
-    with urllib.request.urlopen(req, timeout=180) as resp:
+    with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
         _stats["ollama_calls"] += 1
         for line in resp:
             if not line.strip():
@@ -184,7 +185,7 @@ def _groq_ask(prompt: str, system: Optional[str] = None) -> str:
             f"{GROQ_HOST}/chat/completions", data=data,
             headers=_groq_headers(), method="POST"
         )
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=GROQ_TIMEOUT) as resp:
             _stats["groq_calls"] += 1
             result = json.loads(resp.read().decode())
             content = result["choices"][0]["message"]["content"].strip()
@@ -207,7 +208,7 @@ def _groq_stream(prompt: str, system: Optional[str] = None) -> Generator[str, No
         f"{GROQ_HOST}/chat/completions", data=data,
         headers=_groq_headers(), method="POST"
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=GROQ_TIMEOUT) as resp:
         _stats["groq_calls"] += 1
         for line in resp:
             line = line.decode("utf-8", errors="ignore").strip()

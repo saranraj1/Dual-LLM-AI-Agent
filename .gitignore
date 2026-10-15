@@ -65,11 +65,34 @@ coverage.xml
 # ── Agent runtime files ───────────────────────────────────────────────────────
 .agent_backups/
 .agent_checkpoints/
+.agent/
+.agent_*/
 chat_history.md
 installation_log.txt
+*.log
+logs/
+.taste-skill/
+.*-skill/
 
 # ── Compiled models & databases ───────────────────────────────────────────────
 *.gguf
 *.bin
 *.safetensors
 *.db
+*.sqlite
+*.sqlite3
+
+# ── Node & VS Code Extension ──────────────────────────────────────────────────
+node_modules/
+*.vsix
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Benchmarks & Temp ─────────────────────────────────────────────────────────
+bench_*/
+tmp/
+*.tmp
+.cache/
+.history/
+.local/

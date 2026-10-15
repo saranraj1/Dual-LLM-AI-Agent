@@ -2,7 +2,7 @@
   "name": "ai-agent-vscode",
   "displayName": "AI Agent — Dual-LLM Coding Assistant",
   "description": "Autonomous coding assistant powered by Ollama and Groq. Review, fix, refactor, and explain your code without leaving VS Code.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "saranraj",
   "icon": "images/icon.png",
   "engines": { "vscode": "^1.85.0" },

@@ -104,7 +104,7 @@ _CMD_MAP = {
 app = FastAPI(
     title="AI Agent API",
     description="Autonomous coding assistant — Dual LLM (Ollama + Groq)",
-    version="1.1.0",
+    version="1.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -509,20 +509,52 @@ async def clear_memory():
 
 @app.get("/stats")
 async def llm_stats():
-    """Return LLM call stats and estimated cost."""
+    """Return LLM call stats, token consumption, and estimated cost."""
     try:
         raw = get_stats()
     except Exception as e:
         raw = {"error": str(e)}
 
     cost_summary = ""
+    session_data = {}
     try:
         from core.cost_tracker import tracker
         cost_summary = tracker.summary(verbose=True)
+        s = tracker.session
+        session_data = {
+            "total_tokens": s.total_tokens,
+            "prompt_tokens": s.prompt_tokens,
+            "completion_tokens": s.completion_tokens,
+            "cost_usd": round(s.cost_usd, 6),
+            "ollama_calls": s.ollama_calls,
+            "groq_calls": s.groq_calls,
+            "elapsed_seconds": round(s.elapsed_seconds, 1),
+        }
     except Exception:
         pass
 
-    return {"llm": raw, "cost_summary": cost_summary}
+    return {
+        "llm": raw,
+        "cost_summary": cost_summary,
+        "session": session_data,
+    }
+
+
+@app.post("/stats/reset")
+async def reset_stats():
+    """Reset the current session token telemetry and LLM counters."""
+    try:
+        from core.cost_tracker import tracker
+        tracker.session = tracker.session.__class__()
+        import core.llm as _llm
+        _llm._stats["ollama_calls"] = 0
+        _llm._stats["groq_calls"] = 0
+        _llm._stats["cache_hits"] = 0
+        _llm._stats["total_calls"] = 0
+        return {"ok": True, "message": "Telemetry session successfully reset"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 
 
 @app.get("/files")

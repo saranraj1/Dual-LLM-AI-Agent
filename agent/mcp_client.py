@@ -152,7 +152,7 @@ class MCPStdioClient:
         res = self.send_request("initialize", {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "clientInfo": {"name": "Dual-LLM-AI-Agent", "version": "1.1.0"}
+            "clientInfo": {"name": "Dual-LLM-AI-Agent", "version": "1.2.0"}
         })
         if "result" in res:
             self.send_notification("notifications/initialized")

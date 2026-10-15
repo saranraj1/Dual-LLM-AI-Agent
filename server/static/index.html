@@ -380,18 +380,269 @@ pre, code, kbd, samp {
   color: var(--signal-amber);
 }
 
+/* Topbar Telemetry Chip */
+[data-ui] .telemetry-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+[data-ui] .telemetry-chip:hover {
+  border-color: var(--signal-amber);
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+[data-ui] .telemetry-chip .chip-icon {
+  color: var(--signal-amber);
+  font-size: 11px;
+}
+[data-ui] .telemetry-chip .chip-cost {
+  color: var(--signal-emerald);
+  font-weight: 600;
+}
+
 /* Chat Stream Area */
 [data-ui] .chat-area {
   flex: 1;
   min-height: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
   scrollbar-gutter: stable;
-  padding: 24px 24px 140px 24px;
+  padding: 20px 24px 24px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   overscroll-behavior-y: contain;
-  scroll-behavior: smooth;
+}
+
+/* Real-Time SSE ReAct Trace Cards */
+[data-ui] .react-trace-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--signal-sky);
+  border-radius: var(--radius-md);
+  margin: 0 auto;
+  max-width: 840px;
+  width: 100%;
+  overflow: hidden;
+}
+
+[data-ui] .trace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+[data-ui] .trace-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-ui] .trace-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-ui] .trace-status-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+}
+
+[data-ui] .trace-status-badge.running {
+  background-color: var(--signal-amber-bg);
+  color: var(--signal-amber);
+  animation: pulse-badge 1.8s infinite;
+}
+
+[data-ui] .trace-status-badge.done {
+  background-color: var(--signal-emerald-bg);
+  color: var(--signal-emerald);
+}
+
+[data-ui] .trace-status-badge.error {
+  background-color: var(--signal-crimson-bg);
+  color: var(--signal-crimson);
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+[data-ui] .trace-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+[data-ui] .trace-step-item {
+  background-color: var(--bg-black);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+[data-ui] .trace-step-item.thought {
+  border-left: 2px solid var(--signal-amber);
+}
+
+[data-ui] .trace-step-item.action {
+  border-left: 2px solid var(--signal-sky);
+}
+
+[data-ui] .trace-step-item.observation {
+  border-left: 2px solid var(--signal-emerald);
+}
+
+[data-ui] .trace-step-item.final {
+  border-left: 2px solid #a855f7;
+}
+
+[data-ui] .trace-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: var(--bg-surface);
+  cursor: pointer;
+  user-select: none;
+}
+
+[data-ui] .trace-step-header:hover {
+  background-color: var(--bg-hover);
+}
+
+[data-ui] .trace-step-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+}
+
+[data-ui] .trace-step-body {
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-subtle);
+}
+
+[data-ui] .trace-step-body.collapsed {
+  display: none;
+}
+
+[data-ui] .action-call-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--signal-sky);
+  color: var(--signal-sky);
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+}
+
+[data-ui] .action-input-json {
+  margin-top: 6px;
+  background-color: #040404;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #a5f3fc;
+  overflow-x: auto;
+}
+
+/* Interactive Token Telemetry Gauges */
+[data-ui] .token-gauge-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+[data-ui] .token-circle-box {
+  width: 58px;
+  height: 58px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+[data-ui] .token-circle-box svg {
+  transform: rotate(-90deg);
+}
+
+[data-ui] .token-circle-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+[data-ui] .token-circle-center span.pct {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+[data-ui] .token-gauge-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+[data-ui] .token-split-bar {
+  height: 6px;
+  width: 100%;
+  background-color: var(--bg-hover);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  margin: 4px 0;
+}
+
+[data-ui] .token-split-prompt {
+  background-color: var(--signal-sky);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+[data-ui] .token-split-completion {
+  background-color: var(--signal-emerald);
+  height: 100%;
+  transition: width 0.3s ease;
 }
 
 /* Welcome Console Banner */
@@ -654,23 +905,24 @@ pre, code, kbd, samp {
 /* Floating Jump to Latest Button */
 [data-ui] .scroll-bottom-btn {
   position: absolute;
-  bottom: 86px;
+  bottom: 74px;
   right: 28px;
   background-color: var(--bg-card);
-  border: 1px solid var(--border-strong);
-  color: var(--text-primary);
+  border: 1px solid var(--signal-amber);
+  color: var(--signal-amber);
   border-radius: 20px;
   padding: 6px 14px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  z-index: 20;
+  z-index: 30;
   opacity: 0;
   pointer-events: none;
   transform: translateY(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
   transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.12s ease;
 }
 
@@ -681,9 +933,8 @@ pre, code, kbd, samp {
 }
 
 [data-ui] .scroll-bottom-btn:hover {
-  background-color: var(--bg-hover);
-  border-color: var(--signal-amber);
-  color: var(--signal-amber);
+  background-color: var(--signal-amber);
+  color: #000000;
 }
 
 /* Diagram Deck Component (Mermaid Architecture Visualizer) */
@@ -1605,6 +1856,13 @@ pre, code, kbd, samp {
         </button>
       </div>
 
+      <div class="telemetry-chip" id="topbar-token-chip" onclick="togglePanel(true)" title="Session token burn — click to view telemetry deck">
+        <span class="chip-icon">⚡</span>
+        <span id="chip-tokens">0 tok</span>
+        <span style="opacity: 0.4;">&bull;</span>
+        <span class="chip-cost" id="chip-cost">$0.00</span>
+      </div>
+
       <div class="topbar-meta" id="topbar-title">Coding Assistant</div>
 
       <button class="action-btn" onclick="undoRecentCheckpoint()" title="Revert to prior checkpoint">
@@ -1780,18 +2038,59 @@ pre, code, kbd, samp {
     </div>
 
     <!-- Cell 2: Token Burn & Cost -->
-    <div class="bento-cell">
+    <div class="bento-cell" id="bento-session-cell">
       <div class="cell-header">
         <span>Session Consumption</span>
-        <span class="cell-badge sky">Budget</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="action-btn" style="padding: 1px 6px; font-size: 10px;" onclick="resetTelemetry()" title="Reset session counters">Reset</button>
+          <span class="cell-badge sky" id="stat-budget-badge">Budget</span>
+        </div>
       </div>
+
+      <!-- Radial Token Burn Gauge -->
+      <div class="token-gauge-container">
+        <div class="token-circle-box">
+          <svg width="58" height="58" viewBox="0 0 58 58">
+            <circle cx="29" cy="29" r="24" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5" />
+            <circle id="token-gauge-circle" cx="29" cy="29" r="24" fill="none" stroke="#38bdf8" stroke-width="5"
+              stroke-dasharray="150.8" stroke-dashoffset="150.8" stroke-linecap="round" style="transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease;" />
+          </svg>
+          <div class="token-circle-center">
+            <span id="stat-token-pct">0%</span>
+            <span class="pct">used</span>
+          </div>
+        </div>
+        <div class="token-gauge-meta">
+          <div style="display:flex;justify-content:space-between;font-size:11px;">
+            <span style="color:var(--text-secondary);">Burn</span>
+            <span style="color:var(--text-primary);font-weight:600;" id="stat-tokens-compact">0 / 100k</span>
+          </div>
+          <div class="token-split-bar" title="Prompt (sky) vs Completion (emerald)">
+            <div class="token-split-prompt" id="stat-split-prompt" style="width: 50%;"></div>
+            <div class="token-split-completion" id="stat-split-completion" style="width: 50%;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);">
+            <span>In: <b id="stat-prompt-tok" style="color:var(--signal-sky);">0</b></span>
+            <span>Out: <b id="stat-completion-tok" style="color:var(--signal-emerald);">0</b></span>
+          </div>
+        </div>
+      </div>
+
       <div class="telemetry-row">
-        <span>Tokens</span>
+        <span>Total tokens</span>
         <span class="telemetry-val" id="stat-tokens">0</span>
       </div>
       <div class="telemetry-row">
-        <span>Estimated cost</span>
+        <span>Session spend</span>
         <span class="telemetry-val emerald" id="stat-cost">$0.0000</span>
+      </div>
+      <div class="telemetry-row">
+        <span>Cache efficiency</span>
+        <span class="telemetry-val sky" id="stat-cache-rate">0% hits</span>
+      </div>
+      <div class="telemetry-row">
+        <span>Live speed</span>
+        <span class="telemetry-val amber" id="stat-speed">0 tok/s</span>
       </div>
     </div>
 
@@ -1891,24 +2190,27 @@ function cleanMermaidSource(src) {
   s = s.replace(/\n*```\s*$/i, '');
   s = s.trim();
 
-  // 3. Remove trailing semicolons on lines
+  // 3. Remove conversational text before diagram header if present
+  const headerIdx = s.search(/\b(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|gitGraph|mindmap)\b/i);
+  if (headerIdx > 0) {
+    s = s.substring(headerIdx).trim();
+  }
+
+  // 4. Remove trailing semicolons on lines
   s = s.replace(/;\s*$/gm, '');
 
-  // 4. Ensure diagram header exists
+  // 5. Ensure diagram header exists
   const knownHeaders = /^(?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|gitGraph|mindmap|quadrantChart|xychart-beta|timeline|zenuml|sankey-beta|C4Context)/im;
   if (!knownHeaders.test(s)) {
     s = 'flowchart TD\n' + s;
   }
-
-  // 5. Clean edge labels with quotes: -->|"text"| -> -->|text|
-  s = s.replace(/(-->|--|\.\->|==>)\s*\|"([^"]+)"\|/g, '$1|$2|');
 
   // 6. Strip bold/italic markdown inside labels: [**text**] -> ["text"]
   s = s.replace(/\[\*\*(.+?)\*\*\]/g, '["$1"]');
   s = s.replace(/\{\*\*(.+?)\*\*\}/g, '{"$1"}');
   s = s.replace(/\(\*\*(.+?)\*\*\)/g, '("$1")');
 
-  // 7. Quote unquoted node labels with special chars: A[User / Admin] -> A["User / Admin"]
+  // 7. Quote unquoted node labels with special chars: A[User / Admin (Auth)] -> A["User / Admin (Auth)"]
   s = s.replace(/([a-zA-Z0-9_\-]+)\[(?!")([^\n\]]+?)\]/g, (m, id, text) => {
     const clean = text.replace(/"/g, "'");
     return id + '["' + clean + '"]';
@@ -1922,6 +2224,19 @@ function cleanMermaidSource(src) {
     const clean = text.replace(/"/g, "'");
     return id + '("' + clean + '")';
   });
+
+  // 8. Safely quote edge labels with parentheses or punctuation: -->|User (Token)| -> -->|"User (Token)"|
+  s = s.replace(/(-->|--|\.\->|==>)\s*\|(?!")([^|\n]+?)(?<!")\|/g, (m, arrow, lbl) => {
+    const clean = lbl.replace(/"/g, "'").trim();
+    return `${arrow}|"${clean}"|`;
+  });
+
+  // 9. Balance unclosed subgraphs
+  const subgraphs = (s.match(/\bsubgraph\b/gi) || []).length;
+  const ends = (s.match(/\bend\b/gi) || []).length;
+  if (subgraphs > ends) {
+    s += '\n' + 'end\n'.repeat(subgraphs - ends);
+  }
 
   return s;
 }
@@ -2092,15 +2407,44 @@ function setupScrollListener() {
   const scrollBtn = document.getElementById('scroll-bottom-btn');
   if (!area) return;
 
+  // Wheel listener: immediately detect user scrolling up!
+  area.addEventListener('wheel', (e) => {
+    if (e.deltaY < 0) {
+      _autoScrollEnabled = false;
+      if (scrollBtn) scrollBtn.classList.add('visible');
+    } else if (e.deltaY > 0) {
+      const dist = area.scrollHeight - area.scrollTop - area.clientHeight;
+      if (dist < 35) {
+        _autoScrollEnabled = true;
+        if (scrollBtn) scrollBtn.classList.remove('visible');
+      }
+    }
+  }, { passive: true });
+
+  // Touch listener for touchpads & tablets
+  let _lastTouchY = 0;
+  area.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches[0]) _lastTouchY = e.touches[0].clientY;
+  }, { passive: true });
+  area.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches[0]) {
+      const diff = e.touches[0].clientY - _lastTouchY;
+      if (diff > 5) {
+        _autoScrollEnabled = false;
+        if (scrollBtn) scrollBtn.classList.add('visible');
+      }
+      _lastTouchY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
   area.addEventListener('scroll', () => {
     const distFromBottom = area.scrollHeight - area.scrollTop - area.clientHeight;
-    _autoScrollEnabled = (distFromBottom < 70);
-    if (scrollBtn) {
-      if (!_autoScrollEnabled) {
-        scrollBtn.classList.add('visible');
-      } else {
-        scrollBtn.classList.remove('visible');
-      }
+    if (distFromBottom < 35) {
+      _autoScrollEnabled = true;
+      if (scrollBtn) scrollBtn.classList.remove('visible');
+    } else if (distFromBottom > 80) {
+      _autoScrollEnabled = false;
+      if (scrollBtn) scrollBtn.classList.add('visible');
     }
   }, { passive: true });
 }
@@ -2651,12 +2995,195 @@ function runTask() {
   sendMessage(msg, true);
 }
 
+let _streamStartTime = 0;
+let _streamTokenCount = 0;
+
+async function streamReactTask(taskPrompt) {
+  hideWelcome();
+  appendMessage('user', taskPrompt);
+  setStreaming(true);
+
+  const area = document.getElementById('chat-area');
+  const taskId = 'task-' + Date.now();
+  const startTime = Date.now();
+
+  const card = document.createElement('div');
+  card.className = 'react-trace-card';
+  card.id = taskId;
+  card.innerHTML = `
+    <div class="trace-header">
+      <div class="trace-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        <span>Autonomous Task Execution</span>
+        <span class="trace-status-badge running" id="${taskId}-badge">Running</span>
+      </div>
+      <div class="trace-badges">
+        <span class="trace-turn-badge" id="${taskId}-turn-badge" style="font-size:10px;color:var(--text-secondary);background:var(--bg-card);padding:2px 6px;border-radius:3px;">Turn 1</span>
+        <span id="${taskId}-timer" style="font-size:10px;color:var(--text-muted);font-family:monospace;">0.0s</span>
+      </div>
+    </div>
+    <div class="trace-timeline" id="${taskId}-timeline">
+      <div style="font-size: 11px; color: var(--text-muted); display:flex; align-items:center; gap:6px;">
+        <span class="cursor">&block;</span> Initializing ReAct loop and tool registry...
+      </div>
+    </div>
+  `;
+  area.appendChild(card);
+  smartScrollToBottom(true);
+
+  const timerInterval = setInterval(() => {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const timerEl = document.getElementById(`${taskId}-timer`);
+    if (timerEl) timerEl.textContent = `${elapsed}s`;
+  }, 100);
+
+  try {
+    const resp = await fetch(API + '/react/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: taskPrompt, max_turns: 6 })
+    });
+
+    if (!resp.ok) {
+      clearInterval(timerInterval);
+      const errText = await resp.text();
+      const timeline = document.getElementById(`${taskId}-timeline`);
+      if (timeline) timeline.innerHTML = `<div style="color:var(--signal-crimson);font-size:12px;">Task error: ${escapeHTML(errText)}</div>`;
+      const badge = document.getElementById(`${taskId}-badge`);
+      if (badge) { badge.className = 'trace-status-badge error'; badge.textContent = 'Error'; }
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const timeline = document.getElementById(`${taskId}-timeline`);
+    if (timeline) timeline.innerHTML = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          let payload = JSON.parse(line.slice(6));
+          if (typeof payload === 'string') {
+            try { payload = JSON.parse(payload); } catch (e) {}
+          }
+          if (!payload || typeof payload !== 'object') continue;
+
+          _streamTokenCount += 12;
+          const turn = payload.turn || 1;
+          const turnBadge = document.getElementById(`${taskId}-turn-badge`);
+          if (turnBadge) turnBadge.textContent = `Turn ${turn}`;
+
+          if (payload.type === 'thought') {
+            const stepEl = document.createElement('div');
+            stepEl.className = 'trace-step-item thought';
+            stepEl.innerHTML = `
+              <div class="trace-step-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                <div class="trace-step-label">
+                  <span>🧠</span>
+                  <span>Strategy & Reasoning</span>
+                </div>
+                <span style="font-size:9px;color:var(--text-muted);">Turn ${turn}</span>
+              </div>
+              <div class="trace-step-body">${renderMarkdown(payload.content || '', false)}</div>
+            `;
+            timeline.appendChild(stepEl);
+            smartScrollToBottom();
+          } else if (payload.type === 'action') {
+            const stepEl = document.createElement('div');
+            stepEl.className = 'trace-step-item action';
+            const paramsStr = typeof payload.input === 'object' ? JSON.stringify(payload.input, null, 2) : String(payload.input || '');
+            stepEl.innerHTML = `
+              <div class="trace-step-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                <div class="trace-step-label">
+                  <span>⚡</span>
+                  <span>Tool Action: <code style="color:var(--signal-sky);">${escapeHTML(payload.tool || 'tool')}</code></span>
+                </div>
+                <span style="font-size:9px;color:var(--signal-amber);font-weight:600;">ACTIVE</span>
+              </div>
+              <div class="trace-step-body">
+                <pre class="action-input-json"><code>${escapeHTML(paramsStr)}</code></pre>
+              </div>
+            `;
+            timeline.appendChild(stepEl);
+            smartScrollToBottom();
+          } else if (payload.type === 'observation') {
+            const stepEl = document.createElement('div');
+            stepEl.className = 'trace-step-item observation';
+            const rawContent = String(payload.content || '');
+            const preview = rawContent.slice(0, 1500);
+            stepEl.innerHTML = `
+              <div class="trace-step-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                <div class="trace-step-label">
+                  <span>👁️</span>
+                  <span>Observation Output</span>
+                </div>
+                <span style="font-size:9px;color:var(--signal-emerald);font-weight:600;">OK</span>
+              </div>
+              <div class="trace-step-body">
+                <pre style="max-height:220px;overflow-y:auto;background:#050505;padding:8px 10px;border-radius:4px;font-size:11px;margin:0;"><code class="language-plaintext">${escapeHTML(preview)}</code></pre>
+              </div>
+            `;
+            timeline.appendChild(stepEl);
+            smartScrollToBottom();
+          } else if (payload.type === 'final_answer') {
+            const stepEl = document.createElement('div');
+            stepEl.className = 'trace-step-item final';
+            stepEl.innerHTML = `
+              <div class="trace-step-header">
+                <div class="trace-step-label">
+                  <span>🎯</span>
+                  <span style="color:#c084fc;">Task Resolution</span>
+                </div>
+                <span style="font-size:9px;color:var(--signal-emerald);font-weight:600;">FINAL</span>
+              </div>
+              <div class="trace-step-body" style="padding:14px;background:var(--bg-card);">
+                ${renderMarkdown(payload.content || '', false)}
+              </div>
+            `;
+            timeline.appendChild(stepEl);
+            decorateTurnCard(stepEl);
+            smartScrollToBottom();
+          }
+        } catch (e) {}
+      }
+    }
+
+    clearInterval(timerInterval);
+    const badge = document.getElementById(`${taskId}-badge`);
+    if (badge) {
+      badge.className = 'trace-status-badge done';
+      badge.textContent = 'Completed';
+    }
+  } catch (err) {
+    clearInterval(timerInterval);
+    toast(err.message, 'error');
+  } finally {
+    setStreaming(false);
+    refreshStats();
+    checkPendingQA();
+  }
+}
+
 async function sendMessage(msg, asTask = false) {
+  if (asTask || currentMode === 'run' || msg.startsWith('/react ') || msg.startsWith('/run ')) {
+    const cleanPrompt = msg.replace(/^\/(?:react|run)\s+/, '');
+    await streamReactTask(cleanPrompt);
+    return;
+  }
+
   hideWelcome();
   appendMessage('user', msg);
   setStreaming(true);
 
-  const isSlash = msg.startsWith('/') && !asTask;
+  const isSlash = msg.startsWith('/');
 
   try {
     if (isSlash) {
@@ -2687,15 +3214,10 @@ async function sendMessage(msg, asTask = false) {
     }
 
     const typingId = appendTyping();
-    const body = (asTask || currentMode === 'run')
-      ? JSON.stringify({ task: msg })
-      : JSON.stringify({ message: msg });
-    const endpoint = (asTask || currentMode === 'run') ? '/run' : '/chat';
-
-    const resp = await fetch(API + endpoint, {
+    const resp = await fetch(API + '/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body,
+      body: JSON.stringify({ message: msg }),
     });
 
     if (!resp.ok) {
@@ -2783,7 +3305,7 @@ function appendMessage(role, text) {
         <div class="turn-time">${ts}</div>
       </div>
       <div class="turn-content">
-        ${isUser ? `<div class="user-prompt-cmd">${escapeHTML(text)}</div>` : renderMarkdown(text)}
+        ${isUser ? `<div class="user-prompt-cmd">${escapeHTML(text)}</div>` : renderMarkdown(text, false)}
       </div>
     `;
   }
@@ -2822,12 +3344,19 @@ function appendToken(id, token) {
   if (token === null || token === undefined) return;
   const str = typeof token === 'string' ? token : JSON.stringify(token, null, 2);
   _agentBuf[id] = (_agentBuf[id] || '') + str;
+
+  _streamTokenCount++;
+  const now = Date.now();
+  if (now - _streamStartTime > 200) {
+    const elapsedSec = (now - _streamStartTime) / 1000;
+    const speed = Math.round(_streamTokenCount / elapsedSec);
+    const speedEl = document.getElementById('stat-speed');
+    if (speedEl) speedEl.textContent = `${speed} tok/s`;
+  }
+
   const body = document.getElementById(`${id}-body`);
   if (body) {
-    body.innerHTML = renderMarkdown(_agentBuf[id]) + '<span class="cursor">&block;</span>';
-    if (body.querySelector('.diagram-visual-pane:not([data-rendered="true"])')) {
-      renderAllDiagramsInContainer(body);
-    }
+    body.innerHTML = renderMarkdown(_agentBuf[id], true) + '<span class="cursor">&block;</span>';
     smartScrollToBottom(false);
   }
 }
@@ -2858,7 +3387,7 @@ function finaliseMessage(id) {
   if (!Object.prototype.hasOwnProperty.call(_agentBuf, id)) return;
   const body = document.getElementById(`${id}-body`);
   if (body) {
-    body.innerHTML = renderMarkdown(_agentBuf[id] || '');
+    body.innerHTML = renderMarkdown(_agentBuf[id] || '', false);
     decorateTurnCard(body);
     parseQAFromText(_agentBuf[id], body);
     smartScrollToBottom(false);
@@ -2942,7 +3471,7 @@ function clearChat() {
 }
 
 // Markdown Parser with Diagram Beautification
-function renderMarkdown(text) {
+function renderMarkdown(text, isStreaming = false) {
   if (!text) return '';
 
   let processed = text;
@@ -2965,6 +3494,24 @@ function renderMarkdown(text) {
     const isMermaidSyntax = /^(?:graph\s+|flowchart\s+|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|gitGraph|mindmap)/i.test(code);
 
     if (isExplicitMermaid || isMermaidSyntax) {
+      if (isStreaming) {
+        _blocks.push(`
+          <div class="diagram-deck" data-ui>
+            <div class="diagram-header">
+              <div class="diagram-title">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                <span>Architecture Graph</span>
+                <span class="diagram-badge" style="background:var(--signal-amber-bg);color:var(--signal-amber);">GENERATING</span>
+              </div>
+            </div>
+            <div class="diagram-body" style="padding: 10px 14px; background: #050505;">
+              <pre style="margin:0; background:transparent; border:none;"><code class="language-mermaid">${escapeHTML(code)}</code></pre>
+            </div>
+          </div>
+        `);
+        return `\x00BLOCK${idx}\x00`;
+      }
+
       const diagId = 'diag-' + Math.random().toString(36).substring(2, 9);
       _blocks.push(`
         <div class="diagram-deck" id="${diagId}" data-ui>
@@ -3329,12 +3876,57 @@ async function refreshStats() {
     document.getElementById('stat-groq').textContent         = health.groq   ? 'Online' : 'Offline';
     document.getElementById('stat-ollama-calls').textContent = stats.llm?.ollama_calls ?? 0;
     document.getElementById('stat-groq-calls').textContent   = stats.llm?.groq_calls   ?? 0;
-    document.getElementById('stat-cache').textContent        = stats.llm?.cache_hits   ?? 0;
+    const session = stats.session || {};
+    const totalTok = session.total_tokens || 0;
+    const promptTok = session.prompt_tokens || 0;
+    const compTok = session.completion_tokens || 0;
+    const cost = session.cost_usd || 0;
+    const budget = 100000;
+    const pct = Math.min(Math.round((totalTok / budget) * 100), 100);
 
-    const costMatch  = (stats.cost_summary || '').match(/\$(\d+\.\d+)/);
-    const tokenMatch = (stats.cost_summary || '').match(/Tokens used\s*:\s*([\d,]+)/);
-    document.getElementById('stat-cost').textContent   = costMatch  ? '$' + costMatch[1] : '$0.0000';
-    document.getElementById('stat-tokens').textContent = tokenMatch ? tokenMatch[1] : '0';
+    const circle = document.getElementById('token-gauge-circle');
+    const pctEl = document.getElementById('stat-token-pct');
+    if (pctEl) pctEl.textContent = `${pct}%`;
+    if (circle) {
+      const circ = 150.8;
+      const offset = circ * (1 - pct / 100);
+      circle.style.strokeDashoffset = offset;
+      circle.style.stroke = pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#38bdf8';
+    }
+
+    const compactEl = document.getElementById('stat-tokens-compact');
+    if (compactEl) compactEl.textContent = `${totalTok.toLocaleString()} / 100k`;
+
+    const inEl = document.getElementById('stat-prompt-tok');
+    const outEl = document.getElementById('stat-completion-tok');
+    if (inEl) inEl.textContent = promptTok.toLocaleString();
+    if (outEl) outEl.textContent = compTok.toLocaleString();
+
+    const splitPrompt = document.getElementById('stat-split-prompt');
+    const splitComp = document.getElementById('stat-split-completion');
+    if (splitPrompt && splitComp) {
+      const sum = promptTok + compTok;
+      const pPct = sum > 0 ? (promptTok / sum) * 100 : 50;
+      splitPrompt.style.width = `${pPct}%`;
+      splitComp.style.width = `${100 - pPct}%`;
+    }
+
+    const costEl = document.getElementById('stat-cost');
+    if (costEl) costEl.textContent = `$${cost.toFixed(4)}`;
+    const tokEl = document.getElementById('stat-tokens');
+    if (tokEl) tokEl.textContent = totalTok.toLocaleString();
+
+    const chipTok = document.getElementById('chip-tokens');
+    const chipCost = document.getElementById('chip-cost');
+    if (chipTok) chipTok.textContent = `${totalTok >= 1000 ? (totalTok/1000).toFixed(1) + 'k' : totalTok} tok`;
+    if (chipCost) chipCost.textContent = `$${cost.toFixed(4)}`;
+
+    const hits = stats.llm?.cache_hits || 0;
+    const calls = (stats.llm?.ollama_calls || 0) + (stats.llm?.groq_calls || 0);
+    const totalReqs = hits + calls;
+    const hitRate = totalReqs > 0 ? Math.round((hits / totalReqs) * 100) : 0;
+    const cacheRateEl = document.getElementById('stat-cache-rate');
+    if (cacheRateEl) cacheRateEl.textContent = `${hitRate}% hits (${hits})`;
 
     document.getElementById('stat-short').textContent = mem.short_turns ?? 0;
     document.getElementById('stat-long').textContent  = mem.long_memory?.total_turns ?? 0;
@@ -3342,6 +3934,18 @@ async function refreshStats() {
 
     loadCheckpoints();
   } catch (err) {}
+}
+
+async function resetTelemetry() {
+  try {
+    const res = await fetch(API + '/stats/reset', { method: 'POST' });
+    if (res.ok) {
+      toast('Telemetry session reset', 'success');
+      refreshStats();
+    }
+  } catch (e) {
+    toast('Failed to reset telemetry: ' + e, 'error');
+  }
 }
 
 // Toasts
