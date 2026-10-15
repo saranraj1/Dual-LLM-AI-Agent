@@ -8,6 +8,15 @@ import time
 import threading
 import os
 
+if sys.platform == "win32":
+    try:
+        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # ── ANSI colour codes ─────────────────────────────────────────────────────────
 # Only emit codes when stdout is a real terminal (not piped/redirected)
 _COLORS = os.environ.get("NO_COLOR") is None and sys.stdout.isatty()

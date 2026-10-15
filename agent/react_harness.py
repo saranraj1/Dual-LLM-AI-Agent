@@ -912,8 +912,18 @@ def run_react_loop(
             is_ok = True
         elif ev_type == "error":
             final_answer = ev["content"]
-            history.append(f"Error: {final_answer}")
-            is_ok = False
+    try:
+        from memory.episodic_memory import EpisodicMemory, Episode
+        ep = Episode(
+            task_goal=task,
+            workspace=getattr(registry, "workspace", ""),
+            trajectory=events,
+            status="SUCCESS" if is_ok else "FAILED",
+            error_summary=None if is_ok else (final_answer or "Incomplete loop")
+        )
+        EpisodicMemory(workspace=getattr(registry, "workspace", "")).record_episode(ep)
+    except Exception:
+        pass
 
     return {
         "ok": is_ok,

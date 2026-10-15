@@ -28,6 +28,15 @@ from pathlib import Path
 from typing import Optional, AsyncGenerator, List, Dict, Any
 from functools import partial
 
+if sys.platform == "win32":
+    try:
+        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # ── App root on sys.path ──────────────────────────────────────────────────────
 _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
@@ -43,6 +52,8 @@ from agent.agent import Agent
 from core.llm import get_backend, get_stats, is_running, is_groq_available
 from core.logger import get_logger, tail_log
 from core.prompt_builder import build as _build_prompt, SYSTEM_PROMPT
+from memory.long_memory import LongMemory
+from memory.episodic_memory import EpisodicMemory
 
 log = get_logger(__name__)
 
@@ -162,6 +173,13 @@ class CommandRequest(BaseModel):
 class BuildRequest(BaseModel):
     prompt:    str
     workspace: Optional[str] = None
+
+class FactRequest(BaseModel):
+    category:   str = "convention"
+    fact_key:   str
+    fact_value: str
+    workspace:  Optional[str] = None
+    confidence: float = 1.0
 
 
 # ── SSE helpers ───────────────────────────────────────────────────────────────
@@ -503,6 +521,77 @@ async def clear_memory():
     try:
         agent.clear_memory()
         return {"ok": True, "message": "Memory cleared"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/memory/search")
+@app.get("/api/memory/search")
+async def search_memory(q: str, workspace: Optional[str] = None, limit: int = 10):
+    """Hybrid FTS5 search across conversation turns and knowledge facts."""
+    agent = get_agent()
+    ws = workspace or agent.workspace
+    try:
+        lm = LongMemory(workspace=ws)
+        turns = lm.search(q, limit=limit)
+        facts = lm.get_facts(query=q, limit=limit)
+        return {
+            "query": q,
+            "workspace": ws,
+            "turns": turns,
+            "facts": facts,
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/memory/fact")
+@app.post("/api/memory/fact")
+async def add_memory_fact(req: FactRequest):
+    """Store a curated architectural decision, tech stack convention, or ADR."""
+    agent = get_agent()
+    ws = req.workspace or agent.workspace
+    try:
+        lm = LongMemory(workspace=ws)
+        fact_id = lm.add_fact(
+            category=req.category,
+            fact_key=req.fact_key,
+            fact_value=req.fact_value,
+            confidence=req.confidence,
+        )
+        return {"ok": True, "fact_id": fact_id}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/memory/episodes")
+@app.get("/api/memory/episodes")
+async def get_memory_episodes(workspace: Optional[str] = None, query: Optional[str] = None, limit: int = 10):
+    """Retrieve episodic execution trajectories."""
+    agent = get_agent()
+    ws = workspace or agent.workspace
+    try:
+        em = EpisodicMemory(workspace=ws)
+        if query:
+            episodes = em.search_episodes(query, workspace=ws, limit=limit)
+        else:
+            episodes = em.get_episodes(workspace=ws, limit=limit)
+        return {
+            "workspace": ws,
+            "count": len(episodes),
+            "episodes": [
+                {
+                    "task": ep.task,
+                    "task_type": ep.task_type,
+                    "success": ep.success,
+                    "duration_secs": ep.duration_secs,
+                    "git_commit": ep.git_commit,
+                    "steps": ep.steps,
+                    "created_at": ep.created_at,
+                }
+                for ep in episodes
+            ],
+        }
     except Exception as e:
         raise HTTPException(500, str(e))
 

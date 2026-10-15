@@ -72,7 +72,18 @@ def get_registry_for_workspace(workspace: str = ".") -> Any:
 def execute_tool_call(func: str, params: Dict[str, Any], workspace: str = ".") -> str:
     """Execute a single tool call safely inside the workspace via cached ToolRegistry."""
     registry = get_registry_for_workspace(workspace)
-    return registry.execute(func, params)
+    res = registry.execute(func, params)
+    if isinstance(res, str) and any(err_word in res.lower() for err_word in ["error:", "failed:", "traceback", "exception:"]):
+        try:
+            from memory.fix_memory import FixMemory
+            hints = FixMemory().get_hints(res, limit=2)
+            if hints:
+                formatted = "; ".join([f"{h.get('fix_desc', '')}" for h in hints if h.get('fix_desc')])
+                if formatted:
+                    res += f"\n\n[Procedural Memory Reflex]: Past successful fix pattern for similar error: {formatted}"
+        except Exception:
+            pass
+    return res
 
 
 def resolve_tool_calls_text(

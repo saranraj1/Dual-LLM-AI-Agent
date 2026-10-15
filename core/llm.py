@@ -18,6 +18,7 @@ Features:
   - Streaming for both backends
 """
 
+import os
 import json
 import hashlib
 import subprocess
@@ -47,7 +48,7 @@ def _cost_tracker():
         return None
 
 # ── Active backend state ──────────────────────────────────────────────────────
-_current_backend = "auto"
+_current_backend = os.getenv("DEFAULT_BACKEND", "auto")
 
 # ── Response cache (TTL=120s, max 100 entries) ────────────────────────────────
 _cache: dict = {}

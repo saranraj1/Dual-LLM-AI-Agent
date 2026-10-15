@@ -59,6 +59,21 @@ from core.ui              import (
 )
 
 
+def _safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except (UnicodeEncodeError, OSError):
+        try:
+            enc = getattr(sys.stdout, "encoding", "utf-8") or "utf-8"
+            cleaned = [
+                a.encode(enc, errors="replace").decode(enc) if isinstance(a, str) else a
+                for a in args
+            ]
+            print(*cleaned, **kwargs)
+        except Exception:
+            pass
+
+
 class Agent:
     def __init__(self, workspace: str = ".", confirm_edits: bool = False):
         self.workspace       = os.path.abspath(workspace)
@@ -69,7 +84,7 @@ class Agent:
         self.repo_map        = ""
         self.dir_tree        = ""
         self._current_mode   = "normal"
-        self._print          = print
+        self._print          = _safe_print
         self._session_start  = time.time()
         self._task_count     = 0
 
@@ -229,7 +244,7 @@ class Agent:
                     result_obj = execute_step(
                         step            = step_desc,
                         task            = task,
-                        memory_context  = self._get_memory_context(),
+                        memory_context  = self._get_memory_context(query=task),
                         code_context    = code_context,
                         repo_map        = self.repo_map,
                         cwd             = self.workspace,
@@ -281,7 +296,7 @@ class Agent:
 
     def chat(self, message: str) -> str:
         self._refresh_scan(query=message)
-        mem           = self._get_memory_context()
+        mem           = self._get_memory_context(query=message)
         tree_ctx      = f"## Directory Structure\n{self.dir_tree}" if self.dir_tree else ""
         full_code_ctx = (tree_ctx + "\n\n" + self.code_context).strip()
 
@@ -320,6 +335,12 @@ class Agent:
         self.long_mem.add("user",       raw_message)
         self.long_mem.add("assistant",  full[:400])
         self.long_mem.save()
+
+        try:
+            from memory.fact_extractor import auto_record_turn_facts
+            auto_record_turn_facts(self.workspace, raw_message)
+        except Exception:
+            pass
 
         from agent.executor import (
             _extract_edit_blocks, _auto_edit_files,
@@ -373,7 +394,7 @@ class Agent:
         print(ok("Memory cleared."))
 
     def memory_stats(self) -> dict:
-        return {
+        stats = {
             "short_turns":   len(self.short_mem),
             "long_memory":   self.long_mem.stats(),
             "workspace":     self.workspace,
@@ -383,18 +404,34 @@ class Agent:
             "task_count":    self._task_count,
             "clip_enabled":  self._clip_monitor.is_enabled,
         }
+        try:
+            from memory.episodic_memory import EpisodicMemory
+            episodes = EpisodicMemory().get_episodes(workspace=self.workspace, limit=1)
+            stats["episodic_tracked"] = len(episodes) > 0
+        except Exception:
+            pass
+        return stats
 
     def rescan(self, path: str = None):
         if path:
             self.workspace = os.path.abspath(path)
         self._auto_scan()
 
-    def _get_memory_context(self) -> str:
+    def _get_memory_context(self, query: str = "") -> str:
         short = self.short_mem.get_context(max_chars=400)
-        long  = self.long_mem.get_context(max_chars=300)
+        long_ctx = self.long_mem.get_context(query=query, max_chars=400)
         parts = []
-        if long:  parts.append(f"[Long-term]\n{long}")
-        if short: parts.append(f"[Session]\n{short}")
+        try:
+            facts = self.long_mem.get_facts(query=query, limit=5)
+            if facts:
+                fact_lines = [f"- [{f['category'].upper()}] {f['fact_key']}: {f['fact_value']}" for f in facts]
+                parts.append("[Knowledge & Architecture Rules]\n" + "\n".join(fact_lines))
+        except Exception:
+            pass
+        if long_ctx:
+            parts.append(f"[Long-term Context]\n{long_ctx}")
+        if short:
+            parts.append(f"[Session]\n{short}")
         return "\n\n".join(parts)
 
     def _get_conversation_history(self, max_turns: int = 4) -> str:
